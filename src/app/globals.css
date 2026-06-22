@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #15151a;
+  color: #f2ede4;
+}
+
+input,
+textarea,
+select {
+  background-color: #1c1b23;
+  border: 1px solid #2c2a35;
+  color: #f2ede4;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: #c9a24b;
+}

@@ -1,0 +1,218 @@
+// Aura-D Studio — Prisma schema (Phase 1 starter slice)
+//
+// This is a FOCUSED SUBSET of the full database design in
+// Aura-D_Studio_Schema.sql — only the tables needed to get the SEO Article
+// module working end-to-end (auth → Connected AI → run → asset). As more
+// Phase 1 modules get built, port over more tables from the full schema.sql
+// the same way: keep field names/types identical so the two stay compatible.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection — used by the running app
+  directUrl = env("DIRECT_URL") // direct (non-pooled) connection — used only for migrations
+}
+
+// ---------------------------------------------------------------------------
+// TEAM / USER (spec §13.1, simplified — single-owner team for Phase 1)
+// ---------------------------------------------------------------------------
+
+model Team {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  members     TeamMember[]
+  credentials Credential[]
+  workflows   Workflow[]
+  assets      Asset[]
+
+  @@map("team")
+}
+
+model AppUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  memberships TeamMember[]
+
+  @@map("app_user")
+}
+
+model TeamMember {
+  id     String @id @default(uuid())
+  teamId String @map("team_id")
+  userId String @map("user_id")
+  role   String @default("owner") // 'owner' | 'editor' | 'viewer' — kept simple for Phase 1
+
+  team Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@map("team_member")
+}
+
+// ---------------------------------------------------------------------------
+// AI PROVIDER REGISTRY (spec §5)
+// ---------------------------------------------------------------------------
+
+model AiProvider {
+  code          String  @id // e.g. 'anthropic', 'openai'
+  displayName   String  @map("display_name")
+  capabilities  String[] // subset of: text, vision, video, audio, image
+  keyPrefixHint String? @map("key_prefix_hint") // used for the Auto-Detection Flow, §5.2
+  isActive      Boolean @default(true) @map("is_active")
+
+  models      AiModel[]
+  credentials Credential[]
+
+  @@map("ai_provider")
+}
+
+model AiModel {
+  id           String  @id @default(uuid())
+  providerCode String  @map("provider_code")
+  modelCode    String  @map("model_code") // e.g. 'claude-sonnet-4-6'
+  displayName  String  @map("display_name")
+  isActive     Boolean @default(true) @map("is_active")
+
+  provider       AiProvider      @relation(fields: [providerCode], references: [code])
+  nodeExecutions NodeExecution[]
+
+  @@unique([providerCode, modelCode])
+  @@map("ai_model")
+}
+
+enum CredentialStatus {
+  active
+  expired
+  invalid
+  rate_limited
+  revoked
+}
+
+model Credential {
+  id              String           @id @default(uuid())
+  teamId          String           @map("team_id")
+  providerCode    String           @map("provider_code")
+  displayName     String           @map("display_name")
+  encryptedKey    Bytes            @map("encrypted_key") // AES-256-GCM ciphertext, see src/lib/encryption.ts
+  encryptionIv    Bytes            @map("encryption_iv")
+  isFreeTier      Boolean          @default(false) @map("is_free_tier") // §5.7.1
+  capabilities    String[]
+  status          CredentialStatus @default(active)
+  lastVerifiedAt  DateTime?        @map("last_verified_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  team           Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  provider       AiProvider      @relation(fields: [providerCode], references: [code])
+  nodeExecutions NodeExecution[]
+
+  @@unique([teamId, providerCode, displayName])
+  @@map("credential")
+}
+
+// ---------------------------------------------------------------------------
+// WORKFLOW / RUN (spec §3, §13 — minimal version: one node per run for now)
+// ---------------------------------------------------------------------------
+
+model Workflow {
+  id        String   @id @default(uuid())
+  teamId    String   @map("team_id")
+  name      String
+  category  String // 'seo_article' for this slice; matches workflow_template.category convention
+  createdAt DateTime @default(now()) @map("created_at")
+
+  team Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  runs Run[]
+
+  @@map("workflow")
+}
+
+enum RunStatus {
+  pending
+  running
+  succeeded
+  failed
+}
+
+model Run {
+  id         String    @id @default(uuid())
+  workflowId String    @map("workflow_id")
+  status     RunStatus @default(pending)
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  workflow       Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  nodeExecutions NodeExecution[]
+  assets         Asset[]
+
+  @@map("run")
+}
+
+enum NodeExecStatus {
+  pending
+  running
+  succeeded
+  failed
+}
+
+model NodeExecution {
+  id              String         @id @default(uuid())
+  runId           String         @map("run_id")
+  taskName        String         @map("task_name") // human-readable step label, e.g. "เขียนบทความ SEO"
+  status          NodeExecStatus @default(pending)
+  credentialId    String?        @map("credential_id")
+  resolvedModelId String?        @map("resolved_model_id") // §4.6.1 Generation Recipe — actual model used
+  inputJson       Json?          @map("input_json")
+  outputJson      Json?          @map("output_json")
+  costCredit      Decimal        @default(0) @map("cost_credit") @db.Decimal(10, 4)
+  errorMessage    String?        @map("error_message")
+  startedAt       DateTime?      @map("started_at")
+  finishedAt      DateTime?      @map("finished_at")
+
+  run             Run         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  credential      Credential? @relation(fields: [credentialId], references: [id])
+  resolvedModel   AiModel?    @relation(fields: [resolvedModelId], references: [id])
+  assets          Asset[]
+
+  @@map("node_execution")
+}
+
+// ---------------------------------------------------------------------------
+// ASSET (spec §13, §4.6 Generation Recipe & Favorites)
+// ---------------------------------------------------------------------------
+
+enum AssetType {
+  image
+  video
+  audio
+  document
+  storyboard
+}
+
+model Asset {
+  id                    String    @id @default(uuid())
+  teamId                String    @map("team_id")
+  type                  AssetType
+  title                 String
+  contentText           String?   @map("content_text") // for type=document in this slice; real schema uses file_url + storage
+  sourceNodeExecutionId String?   @map("source_node_execution_id")
+  sourceRunId           String?   @map("source_run_id")
+  isFavorited           Boolean   @default(false) @map("is_favorited")
+  favoritedAt           DateTime? @map("favorited_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  team                Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sourceNodeExecution NodeExecution? @relation(fields: [sourceNodeExecutionId], references: [id])
+  sourceRun           Run?           @relation(fields: [sourceRunId], references: [id])
+
+  @@map("asset")
+}
