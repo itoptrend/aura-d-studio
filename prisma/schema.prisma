@@ -197,6 +197,7 @@ model Character {
   teamId      String   @map("team_id")
   name        String                          // ชื่อตัวละคร เช่น "น้องออร่า"
   description String?                         // คำอธิบายสั้นๆ
+  role        String   @default("unset")      // 'main' | 'supporting' | 'unset' — optional
   personality String   @default("")           // บุคลิกนิสัย
   tone        String   @default("")           // น้ำเสียงการสื่อสาร
   backstory   String?                         // ประวัติ/เรื่องราว

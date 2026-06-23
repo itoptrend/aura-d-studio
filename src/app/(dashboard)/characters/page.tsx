@@ -6,6 +6,7 @@ interface Character {
   id: string;
   name: string;
   description?: string;
+  role: string;
   personality: string;
   tone: string;
   backstory?: string;
@@ -14,32 +15,36 @@ interface Character {
   createdAt: string;
 }
 
-interface Credential {
-  id: string;
-  displayName: string;
-  providerCode: string;
-}
+interface Credential { id: string; displayName: string; providerCode: string; }
 
-const EMOJI_OPTIONS = ['🤖', '👩', '👨', '🦸', '🧙', '🎭', '🌟', '💫', '🔥', '🌸', '🐯', '🦋'];
+const EMOJI_OPTIONS = ['🤖','👩','👨','🦸','🧙','🎭','🌟','💫','🔥','🌸','🐯','🦋'];
+const EMPTY_FORM = { name:'', description:'', role:'unset', personality:'', tone:'', backstory:'', examples:'', avatarEmoji:'🤖' };
 
-const EMPTY_FORM = {
-  name: '', description: '', personality: '',
-  tone: '', backstory: '', examples: '', avatarEmoji: '🤖'
+const ROLE_LABEL: Record<string,string> = {
+  main: '⭐ ตัวหลัก',
+  supporting: '🎭 ตัวประกอบ',
+  unset: ''
 };
+
+const ROLE_OPTIONS = [
+  { value: 'unset',      label: 'ไม่ระบุ (ทั่วไป)' },
+  { value: 'main',       label: '⭐ ตัวหลัก — Brand Voice หลักของแบรนด์' },
+  { value: 'supporting', label: '🎭 ตัวประกอบ — ใช้เสริมในเนื้อหาเฉพาะ' }
+];
 
 export default function CharactersPage() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
+  const [providers, setProviders] = useState<{code:string;models:{modelCode:string;displayName:string}[]}[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string|null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genCredentialId, setGenCredentialId] = useState('');
   const [genModelCode, setGenModelCode] = useState('');
-  const [providers, setProviders] = useState<{ code: string; models: { modelCode: string; displayName: string }[] }[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string|null>(null);
+  const [deleting, setDeleting] = useState<string|null>(null);
 
   async function loadAll() {
     const [charRes, credRes, provRes] = await Promise.all([
@@ -47,14 +52,10 @@ export default function CharactersPage() {
       fetch('/api/credentials'),
       fetch('/api/ai-providers?capability=text')
     ]);
-    const charData = await charRes.json();
-    const credData = await credRes.json();
-    const provData = await provRes.json();
-    setCharacters(charData.characters ?? []);
-    setCredentials(credData.credentials ?? []);
-    setProviders(provData.providers ?? []);
+    setCharacters((await charRes.json()).characters ?? []);
+    setCredentials((await credRes.json()).credentials ?? []);
+    setProviders((await provRes.json()).providers ?? []);
   }
-
   useEffect(() => { loadAll(); }, []);
 
   const selectedCredential = credentials.find((c) => c.id === genCredentialId);
@@ -63,14 +64,12 @@ export default function CharactersPage() {
   async function handleGenerateWithAI() {
     if (!genCredentialId || !genModelCode || !form.name) return;
     setGenerating(true);
-
-    const prompt = `สร้างตัวละครแบรนด์สำหรับ "${form.name}"${form.description ? ` ซึ่ง${form.description}` : ''} ตอบในรูปแบบนี้:
+    try {
+      const prompt = `สร้างตัวละครแบรนด์สำหรับ "${form.name}"${form.description ? ` ซึ่ง${form.description}` : ''} ตอบในรูปแบบนี้:
 บุคลิก: [อธิบาย 2-3 ประโยค]
 น้ำเสียง: [อธิบาย 1-2 ประโยค]
 ประวัติ: [อธิบาย 2-3 ประโยค]
-ตัวอย่างประโยค: [3 ประโยคตัวอย่างที่ตัวละครนี้จะพูด]`;
-
-    try {
+ตัวอย่างประโยค: [3 ประโยคที่ตัวละครนี้จะพูด คั่นด้วย / ]`;
       const res = await fetch('/api/workflows/generate-text', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -78,7 +77,6 @@ export default function CharactersPage() {
       });
       const data = await res.json();
       if (data.text) {
-        // Parse the AI response into form fields
         const lines = data.text.split('\n').filter(Boolean);
         const get = (prefix: string) => {
           const line = lines.find((l: string) => l.startsWith(prefix));
@@ -92,31 +90,20 @@ export default function CharactersPage() {
           examples: get('ตัวอย่างประโยค:') || f.examples
         }));
       }
-    } catch {
-      alert('สร้างด้วย AI ไม่สำเร็จ ลองใหม่อีกครั้ง');
-    }
+    } catch { alert('สร้างด้วย AI ไม่สำเร็จ ลองใหม่'); }
     setGenerating(false);
   }
 
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
-
     const method = editingId ? 'PATCH' : 'POST';
     const url = editingId ? `/api/characters/${editingId}` : '/api/characters';
-
     const res = await fetch(url, {
-      method,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(form)
+      method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(form)
     });
     setSaving(false);
-    if (res.ok) {
-      setShowForm(false);
-      setEditingId(null);
-      setForm(EMPTY_FORM);
-      await loadAll();
-    }
+    if (res.ok) { setShowForm(false); setEditingId(null); setForm(EMPTY_FORM); await loadAll(); }
   }
 
   async function handleDelete(id: string) {
@@ -128,16 +115,59 @@ export default function CharactersPage() {
   }
 
   function handleEdit(c: Character) {
-    setForm({
-      name: c.name, description: c.description ?? '',
-      personality: c.personality, tone: c.tone,
-      backstory: c.backstory ?? '', examples: c.examples ?? '',
-      avatarEmoji: c.avatarEmoji
-    });
-    setEditingId(c.id);
-    setShowForm(true);
-    setExpanded(null);
+    setForm({ name:c.name, description:c.description??'', role:c.role,
+      personality:c.personality, tone:c.tone, backstory:c.backstory??'',
+      examples:c.examples??'', avatarEmoji:c.avatarEmoji });
+    setEditingId(c.id); setShowForm(true); setExpanded(null);
   }
+
+  // Group characters by role for display
+  const main = characters.filter((c) => c.role === 'main');
+  const supporting = characters.filter((c) => c.role === 'supporting');
+  const unset = characters.filter((c) => c.role === 'unset');
+  const hasGroups = main.length > 0 || supporting.length > 0;
+
+  const CharacterCard = ({ c }: { c: Character }) => (
+    <div className="rounded-2xl border border-[#2C2A35] overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#1C1B23]"
+        onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{c.avatarEmoji}</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold">{c.name}</p>
+              {c.role !== 'unset' && (
+                <span className="text-[9px] font-bold text-gold bg-gold/10 px-1.5 py-0.5 rounded-full">
+                  {ROLE_LABEL[c.role]}
+                </span>
+              )}
+            </div>
+            {c.description && <p className="text-xs text-[#9C9690]">{c.description}</p>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 ml-3">
+          <button onClick={(e) => { e.stopPropagation(); handleEdit(c); }}
+            className="text-xs text-[#9C9690] border border-[#2C2A35] rounded-lg px-3 py-1.5 hover:border-[#9C9690]">
+            แก้ไข
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
+            disabled={deleting === c.id}
+            className="text-xs text-[#C9716A] border border-[#C9716A]/40 rounded-lg px-3 py-1.5 disabled:opacity-50">
+            {deleting === c.id ? '...' : 'ลบ'}
+          </button>
+          <span className="text-[#9C9690] text-xs">{expanded === c.id ? '▲' : '▼'}</span>
+        </div>
+      </div>
+      {expanded === c.id && (
+        <div className="px-4 pb-4 border-t border-[#2C2A35] space-y-3 pt-3">
+          {c.personality && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">บุคลิก</p><p className="text-sm leading-relaxed">{c.personality}</p></div>}
+          {c.tone && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">น้ำเสียง</p><p className="text-sm leading-relaxed">{c.tone}</p></div>}
+          {c.backstory && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">ประวัติ</p><p className="text-sm leading-relaxed">{c.backstory}</p></div>}
+          {c.examples && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">ตัวอย่างประโยค</p><p className="text-sm leading-relaxed text-[#9C9690] italic">{c.examples}</p></div>}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div>
@@ -147,10 +177,8 @@ export default function CharactersPage() {
           <p className="text-sm text-[#9C9690] mt-1">สร้างตัวละคร/Brand Voice สำหรับสร้างคอนเทนต์ที่มีเอกลักษณ์</p>
         </div>
         {!showForm && (
-          <button
-            onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_FORM); }}
-            className="text-sm font-semibold bg-gold text-black rounded-xl px-4 py-2"
-          >
+          <button onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_FORM); }}
+            className="text-sm font-semibold bg-gold text-black rounded-xl px-4 py-2">
             + สร้างตัวละคร
           </button>
         )}
@@ -166,11 +194,8 @@ export default function CharactersPage() {
             <label className="block text-xs text-[#9C9690] mb-2">Avatar</label>
             <div className="flex gap-2 flex-wrap">
               {EMOJI_OPTIONS.map((e) => (
-                <button
-                  key={e}
-                  onClick={() => setForm({ ...form, avatarEmoji: e })}
-                  className={`text-2xl w-10 h-10 rounded-xl border ${form.avatarEmoji === e ? 'border-gold bg-gold/20' : 'border-[#2C2A35]'}`}
-                >
+                <button key={e} onClick={() => setForm({...form, avatarEmoji:e})}
+                  className={`text-2xl w-10 h-10 rounded-xl border ${form.avatarEmoji===e ? 'border-gold bg-gold/20' : 'border-[#2C2A35]'}`}>
                   {e}
                 </button>
               ))}
@@ -180,17 +205,35 @@ export default function CharactersPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-[#9C9690] mb-1.5">ชื่อตัวละคร *</label>
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              <input required value={form.name} onChange={(e) => setForm({...form, name:e.target.value})}
                 placeholder="เช่น น้องออร่า" className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
             </div>
             <div>
               <label className="block text-xs text-[#9C9690] mb-1.5">คำอธิบายสั้นๆ</label>
-              <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+              <input value={form.description} onChange={(e) => setForm({...form, description:e.target.value})}
                 placeholder="เช่น ผู้ช่วยด้านความงาม" className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
             </div>
           </div>
 
-          {/* AI Generator section */}
+          {/* Role selector */}
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1.5">บทบาท (optional)</label>
+            <div className="flex gap-2 flex-wrap">
+              {ROLE_OPTIONS.map((r) => (
+                <button key={r.value} onClick={() => setForm({...form, role:r.value})}
+                  className={`text-xs px-3 py-2 rounded-xl border transition-colors ${
+                    form.role===r.value ? 'border-gold bg-gold/10 text-gold font-semibold' : 'border-[#2C2A35] text-[#9C9690]'
+                  }`}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-[#9C9690] mt-1.5">
+              ไม่เลือกก็ได้ — ระบบจะแสดงตัวละครทั้งหมดรวมกัน เลือกเพื่อจัดหมวดหมู่เท่านั้น
+            </p>
+          </div>
+
+          {/* AI Generator */}
           <div className="rounded-xl border border-[#2C2A35] p-3 space-y-2">
             <p className="text-xs text-[#9C9690] font-semibold">✨ สร้างรายละเอียดด้วย AI</p>
             <div className="flex gap-2">
@@ -206,11 +249,9 @@ export default function CharactersPage() {
                   {selectedProvider.models.map((m) => <option key={m.modelCode} value={m.modelCode}>{m.displayName}</option>)}
                 </select>
               )}
-              <button
-                onClick={handleGenerateWithAI}
+              <button onClick={handleGenerateWithAI}
                 disabled={generating || !genCredentialId || !genModelCode || !form.name}
-                className="text-xs font-semibold bg-[#2C2A35] text-bone rounded-xl px-3 py-2 disabled:opacity-50"
-              >
+                className="text-xs font-semibold bg-[#2C2A35] text-bone rounded-xl px-3 py-2 disabled:opacity-50">
                 {generating ? 'กำลังสร้าง...' : 'สร้าง'}
               </button>
             </div>
@@ -218,26 +259,26 @@ export default function CharactersPage() {
 
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">บุคลิกนิสัย</label>
-            <textarea value={form.personality} onChange={(e) => setForm({ ...form, personality: e.target.value })}
+            <textarea value={form.personality} onChange={(e) => setForm({...form, personality:e.target.value})}
               placeholder="เช่น เป็นมิตร อบอุ่น ให้คำแนะนำอย่างตรงไปตรงมา..."
               className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[80px] resize-none" />
           </div>
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">น้ำเสียงการสื่อสาร</label>
-            <input value={form.tone} onChange={(e) => setForm({ ...form, tone: e.target.value })}
-              placeholder="เช่น พูดภาษาไทยกึ่งทางการ ใช้ภาษาเข้าใจง่าย ไม่เป็นทางการเกินไป"
+            <input value={form.tone} onChange={(e) => setForm({...form, tone:e.target.value})}
+              placeholder="เช่น พูดภาษาไทยกึ่งทางการ ใช้ภาษาเข้าใจง่าย"
               className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
           </div>
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">ประวัติ / Backstory</label>
-            <textarea value={form.backstory} onChange={(e) => setForm({ ...form, backstory: e.target.value })}
+            <textarea value={form.backstory} onChange={(e) => setForm({...form, backstory:e.target.value})}
               placeholder="เช่น น้องออร่าเป็นผู้ช่วยด้านความงามที่มีประสบการณ์..."
               className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[80px] resize-none" />
           </div>
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">ตัวอย่างประโยค</label>
-            <textarea value={form.examples} onChange={(e) => setForm({ ...form, examples: e.target.value })}
-              placeholder="เช่น &#10;สวัสดีค่ะ วันนี้จะมาแนะนำผลิตภัณฑ์ที่ดีสำหรับผิวคุณนะคะ"
+            <textarea value={form.examples} onChange={(e) => setForm({...form, examples:e.target.value})}
+              placeholder="เช่น สวัสดีค่ะ วันนี้จะมาแนะนำผลิตภัณฑ์ที่ดีสำหรับผิวคุณนะคะ"
               className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[80px] resize-none" />
           </div>
 
@@ -254,67 +295,36 @@ export default function CharactersPage() {
         </div>
       )}
 
-      {/* Character list */}
-      <div className="mt-8 space-y-3">
+      {/* Character list — grouped if user chose roles, flat if not */}
+      <div className="mt-8 space-y-6">
         {characters.length === 0 && !showForm && (
-          <p className="text-sm text-[#9C9690]">ยังไม่มีตัวละคร — กด "สร้างตัวละคร" เพื่อเริ่มต้น</p>
+          <p className="text-sm text-[#9C9690]">ยังไม่มีตัวละคร — กด "+ สร้างตัวละคร" เพื่อเริ่มต้น</p>
         )}
 
-        {characters.map((c) => (
-          <div key={c.id} className="rounded-2xl border border-[#2C2A35] overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#1C1B23]"
-              onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{c.avatarEmoji}</span>
-                <div>
-                  <p className="text-sm font-semibold">{c.name}</p>
-                  {c.description && <p className="text-xs text-[#9C9690]">{c.description}</p>}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 ml-3">
-                <button onClick={(e) => { e.stopPropagation(); handleEdit(c); }}
-                  className="text-xs text-[#9C9690] border border-[#2C2A35] rounded-lg px-3 py-1.5 hover:border-[#9C9690]">
-                  แก้ไข
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
-                  disabled={deleting === c.id}
-                  className="text-xs text-[#C9716A] border border-[#C9716A]/40 rounded-lg px-3 py-1.5 disabled:opacity-50">
-                  {deleting === c.id ? '...' : 'ลบ'}
-                </button>
-                <span className="text-[#9C9690] text-xs">{expanded === c.id ? '▲' : '▼'}</span>
-              </div>
-            </div>
-
-            {expanded === c.id && (
-              <div className="px-4 pb-4 border-t border-[#2C2A35] space-y-3 pt-3">
-                {c.personality && (
-                  <div>
-                    <p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">บุคลิก</p>
-                    <p className="text-sm leading-relaxed">{c.personality}</p>
-                  </div>
-                )}
-                {c.tone && (
-                  <div>
-                    <p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">น้ำเสียง</p>
-                    <p className="text-sm leading-relaxed">{c.tone}</p>
-                  </div>
-                )}
-                {c.backstory && (
-                  <div>
-                    <p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">ประวัติ</p>
-                    <p className="text-sm leading-relaxed">{c.backstory}</p>
-                  </div>
-                )}
-                {c.examples && (
-                  <div>
-                    <p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">ตัวอย่างประโยค</p>
-                    <p className="text-sm leading-relaxed text-[#9C9690] italic">{c.examples}</p>
-                  </div>
-                )}
+        {hasGroups ? (
+          <>
+            {main.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-[#9C9690] uppercase tracking-wider mb-3">⭐ ตัวหลัก</p>
+                <div className="space-y-2">{main.map((c) => <CharacterCard key={c.id} c={c} />)}</div>
               </div>
             )}
-          </div>
-        ))}
+            {supporting.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-[#9C9690] uppercase tracking-wider mb-3">🎭 ตัวประกอบ</p>
+                <div className="space-y-2">{supporting.map((c) => <CharacterCard key={c.id} c={c} />)}</div>
+              </div>
+            )}
+            {unset.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-[#9C9690] uppercase tracking-wider mb-3">ตัวละครอื่นๆ</p>
+                <div className="space-y-2">{unset.map((c) => <CharacterCard key={c.id} c={c} />)}</div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="space-y-2">{characters.map((c) => <CharacterCard key={c.id} c={c} />)}</div>
+        )}
       </div>
     </div>
   );
