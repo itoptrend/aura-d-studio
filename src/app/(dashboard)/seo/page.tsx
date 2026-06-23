@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 interface Provider {
   code: string;
@@ -15,13 +16,21 @@ interface CredentialOption {
   displayName: string;
 }
 
+interface Skill {
+  id: string;
+  name: string;
+  promptTemplate: string;
+}
+
 export default function SeoArticlePage() {
+  const searchParams = useSearchParams();
   const [providers, setProviders] = useState<Provider[]>([]);
   const [credentials, setCredentials] = useState<CredentialOption[]>([]);
   const [topic, setTopic] = useState('');
   const [keyword, setKeyword] = useState('');
   const [credentialId, setCredentialId] = useState('');
   const [modelCode, setModelCode] = useState('');
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
@@ -29,7 +38,7 @@ export default function SeoArticlePage() {
   useEffect(() => {
     async function load() {
       const [providersRes, credentialsRes] = await Promise.all([
-        fetch('/api/ai-providers?capability=text'), // แสดงเฉพาะโมเดลเขียนข้อความ
+        fetch('/api/ai-providers?capability=text'),
         fetch('/api/credentials')
       ]);
       const providersData = await providersRes.json();
@@ -38,7 +47,16 @@ export default function SeoArticlePage() {
       setCredentials(credentialsData.credentials ?? []);
     }
     load();
-  }, []);
+
+    // Load skill from URL param if provided (from Skill Library "ใช้ Skill นี้" button)
+    const skillId = searchParams.get('skillId');
+    if (skillId) {
+      fetch(`/api/skills?category=`).then((r) => r.json()).then((data) => {
+        const skill = (data.skills ?? []).find((s: Skill) => s.id === skillId);
+        if (skill) setSelectedSkill(skill);
+      });
+    }
+  }, [searchParams]);
 
   const selectedCredential = credentials.find((c) => c.id === credentialId);
   const selectedProvider = providers.find((p) => p.code === selectedCredential?.providerCode);
@@ -52,7 +70,13 @@ export default function SeoArticlePage() {
     const res = await fetch('/api/workflows/seo-article/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ topic, keyword, credentialId, modelCode })
+      body: JSON.stringify({
+        topic,
+        keyword,
+        credentialId,
+        modelCode,
+        skillId: selectedSkill?.id // pass skill id to backend
+      })
     });
     const data = await res.json();
     setLoading(false);
@@ -81,6 +105,17 @@ export default function SeoArticlePage() {
       <h1 className="font-serif text-2xl mb-1">เขียนบทความ SEO</h1>
       <p className="text-sm text-[#9C9690] mb-8">Wizard Mode — กรอกหัวข้อ เลือก AI แล้วกดสร้างได้เลย</p>
 
+      {/* Selected skill badge */}
+      {selectedSkill && (
+        <div className="flex items-center justify-between rounded-2xl bg-gold/10 border border-gold/30 px-4 py-2.5 mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-bold text-gold bg-gold/20 px-1.5 py-0.5 rounded-full">SKILL</span>
+            <span className="text-sm font-semibold">{selectedSkill.name}</span>
+          </div>
+          <button onClick={() => setSelectedSkill(null)} className="text-xs text-[#9C9690] hover:text-bone">ลบออก ×</button>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
         <div>
           <label className="block text-xs text-[#9C9690] mb-1.5">หัวข้อบทความ</label>
@@ -107,17 +142,12 @@ export default function SeoArticlePage() {
           <select
             required
             value={credentialId}
-            onChange={(e) => {
-              setCredentialId(e.target.value);
-              setModelCode('');
-            }}
+            onChange={(e) => { setCredentialId(e.target.value); setModelCode(''); }}
             className="w-full rounded-xl px-3.5 py-2.5 text-sm"
           >
             <option value="">เลือก AI ที่เชื่อมต่อไว้</option>
             {credentials.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.displayName}
-              </option>
+              <option key={c.id} value={c.id}>{c.displayName}</option>
             ))}
           </select>
         </div>
@@ -132,13 +162,19 @@ export default function SeoArticlePage() {
             >
               <option value="">เลือกโมเดล</option>
               {selectedProvider.models.map((m) => (
-                <option key={m.modelCode} value={m.modelCode}>
-                  {m.displayName}
-                </option>
+                <option key={m.modelCode} value={m.modelCode}>{m.displayName}</option>
               ))}
             </select>
           </div>
         )}
+
+        <div className="flex items-center gap-3">
+          {!selectedSkill && (
+            <Link href="/skills" className="text-xs text-[#9C9690] hover:text-gold border border-[#2C2A35] rounded-xl px-3 py-2">
+              เลือก Skill →
+            </Link>
+          )}
+        </div>
 
         {error && <p className="text-sm text-[#C9716A]">{error}</p>}
 

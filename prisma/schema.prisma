@@ -188,6 +188,24 @@ model NodeExecution {
 }
 
 // ---------------------------------------------------------------------------
+// SKILL LIBRARY (spec §18.9 Official Skill Library)
+// ---------------------------------------------------------------------------
+
+model Skill {
+  id             String   @id @default(uuid())
+  name           String
+  description    String
+  category       String   // 'seo' | 'social' | 'character' | 'video' | 'general'
+  promptTemplate String   @map("prompt_template") // system prompt template
+  isOfficial     Boolean  @default(false) @map("is_official") // true = Aura-D platform skill (read-only)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([name, category], name: "name_category")
+  @@map("skill")
+}
+
+// ---------------------------------------------------------------------------
 // ASSET (spec §13, §4.6 Generation Recipe & Favorites)
 // ---------------------------------------------------------------------------
 

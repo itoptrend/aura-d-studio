@@ -11,7 +11,8 @@ const runSchema = z.object({
   topic: z.string().min(3, 'กรอกหัวข้อบทความอย่างน้อย 3 ตัวอักษร'),
   keyword: z.string().min(1, 'กรอกคีย์เวิร์ดหลัก'),
   credentialId: z.string().uuid(),
-  modelCode: z.string().min(1)
+  modelCode: z.string().min(1),
+  skillId: z.string().uuid().optional() // optional — uses default prompt if not provided
 });
 
 type GenerateParams = {
@@ -49,7 +50,22 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'ข้อมูลไม่ถูกต้อง' }, { status: 400 });
   }
-  const { topic, keyword, credentialId, modelCode } = parsed.data;
+  const { topic, keyword, credentialId, modelCode, skillId } = parsed.data;
+
+  // Load skill prompt template if skillId provided, otherwise use default
+  let systemPrompt: string;
+  if (skillId) {
+    const skill = await prisma.skill.findUnique({ where: { id: skillId } });
+    systemPrompt = skill?.promptTemplate ?? '';
+  } else {
+    systemPrompt = [
+      'คุณเป็นนักเขียนคอนเทนต์ SEO ภาษาไทยมืออาชีพ',
+      `เขียนบทความให้เน้นคีย์เวิร์ดหลัก "${keyword}" อย่างเป็นธรรมชาติ ไม่ยัดคีย์เวิร์ดจนอ่านไม่ลื่น`,
+      'จัดโครงสร้างด้วย Heading ชัดเจน (H1 หนึ่งอัน, H2 หลายอัน) ความยาวรวมประมาณ 600-900 คำ',
+      'ตอบเป็นข้อความธรรมดา (plain text) เท่านั้น ห้ามใส่ HTML tag เช่น <h1> <p> <strong> ลงในคำตอบเด็ดขาด',
+      'ใช้บรรทัดว่างแบ่งหัวข้อ และนำหน้าหัวข้อด้วย ## แทน HTML tag'
+    ].join(' ');
+  }
 
   const credential = await prisma.credential.findFirst({
     where: { id: credentialId, teamId },
@@ -98,8 +114,8 @@ export async function POST(req: Request) {
     const result = await callAI(credential.providerCode, {
       apiKey,
       model: modelCode,
-      system,
-      prompt: `เขียนบทความ SEO หัวข้อ: ${topic}`,
+      system: systemPrompt,
+      prompt: `เขียนบทความ SEO หัวข้อ: ${topic} คีย์เวิร์ดหลัก: ${keyword}`,
       maxTokens: 2048
     });
 
