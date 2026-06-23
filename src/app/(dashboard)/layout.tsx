@@ -13,18 +13,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="flex items-center gap-8">
           <span className="font-serif text-lg">Aura-D Studio</span>
           <nav className="flex items-center gap-5 text-sm text-[#9C9690]">
-            <Link href="/seo" className="hover:text-bone">
-              เขียนบทความ SEO
-            </Link>
-            <Link href="/skills" className="hover:text-bone">
-              Skill Library
-            </Link>
-            <Link href="/assets" className="hover:text-bone">
-              คลังไฟล์
-            </Link>
-            <Link href="/settings/connected-ai" className="hover:text-bone">
-              Connected AI
-            </Link>
+            <Link href="/seo" className="hover:text-bone">เขียนบทความ SEO</Link>
+            <Link href="/characters" className="hover:text-bone">Character Engine</Link>
+            <Link href="/skills" className="hover:text-bone">Skill Library</Link>
+            <Link href="/assets" className="hover:text-bone">คลังไฟล์</Link>
+            <Link href="/settings/connected-ai" className="hover:text-bone">Connected AI</Link>
           </nav>
         </div>
         <SignOutButton />
