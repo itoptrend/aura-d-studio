@@ -14,6 +14,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <span className="font-serif text-lg">Aura-D Studio</span>
           <nav className="flex items-center gap-5 text-sm text-[#9C9690]">
             <Link href="/seo" className="hover:text-bone">เขียนบทความ SEO</Link>
+            <Link href="/social" className="hover:text-bone">Social Content</Link>
             <Link href="/characters" className="hover:text-bone">Character Engine</Link>
             <Link href="/skills" className="hover:text-bone">Skill Library</Link>
             <Link href="/assets" className="hover:text-bone">คลังไฟล์</Link>
