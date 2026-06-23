@@ -48,22 +48,22 @@ export async function generateTextGemini(params: {
   prompt: string;
   maxTokens?: number;
 }): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const contents = [];
+  // Gemini uses systemInstruction for system prompts, separate from contents[]
+  const body: Record<string, unknown> = {
+    contents: [{ role: 'user', parts: [{ text: params.prompt }] }],
+    generationConfig: { maxOutputTokens: params.maxTokens ?? 2048 }
+  };
+
   if (params.system) {
-    contents.push({ role: 'user', parts: [{ text: params.system }] });
-    contents.push({ role: 'model', parts: [{ text: 'เข้าใจแล้ว' }] });
+    body.systemInstruction = { parts: [{ text: params.system }] };
   }
-  contents.push({ role: 'user', parts: [{ text: params.prompt }] });
 
   const res = await fetch(
     `${GEMINI_API_BASE}/${params.model}:generateContent?key=${params.apiKey}`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        generationConfig: { maxOutputTokens: params.maxTokens ?? 2048 }
-      })
+      body: JSON.stringify(body)
     }
   );
 
@@ -73,8 +73,12 @@ export async function generateTextGemini(params: {
   }
 
   const data = await res.json();
-  const text =
+  const rawText =
     data.candidates?.[0]?.content?.parts?.map((p: { text: string }) => p.text).join('') ?? '';
+
+  // Strip HTML tags so downloaded .txt files are clean plain text
+  const text = rawText.replace(/<[^>]+>/g, '').trim();
+
   const inputTokens = data.usageMetadata?.promptTokenCount ?? 0;
   const outputTokens = data.usageMetadata?.candidatesTokenCount ?? 0;
 

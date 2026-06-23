@@ -74,10 +74,13 @@ export async function generateText(params: {
   }
 
   const data = await res.json();
-  const text = (data.content ?? [])
+  const rawText = (data.content ?? [])
     .filter((block: { type: string }) => block.type === 'text')
     .map((block: { text: string }) => block.text)
     .join('\n');
+
+  // Strip HTML tags so downloaded .txt files are clean plain text
+  const text = rawText.replace(/<[^>]+>/g, '').trim();
 
   return {
     text,
