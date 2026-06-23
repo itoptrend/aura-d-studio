@@ -12,6 +12,7 @@ export async function GET() {
       id: true,
       type: true,
       title: true,
+      contentText: true,
       isFavorited: true,
       createdAt: true,
       sourceNodeExecution: { select: { costCredit: true } }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 
 interface RecipeStep {
   taskName: string;
@@ -28,12 +29,14 @@ export default function AssetDetailPage() {
   const [recipe, setRecipe] = useState<RecipeStep[]>([]);
   const [totalCost, setTotalCost] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [favorited, setFavorited] = useState(false);
 
   useEffect(() => {
     async function load() {
       const res = await fetch(`/api/assets/${params.id}`);
       const data = await res.json();
       setAsset(data.asset);
+      setFavorited(data.asset?.isFavorited ?? false);
       setRecipe(data.recipe ?? []);
       setTotalCost(data.totalCostCredit ?? 0);
       setLoading(false);
@@ -41,15 +44,61 @@ export default function AssetDetailPage() {
     load();
   }, [params.id]);
 
+  async function toggleFavorite() {
+    if (!asset) return;
+    const next = !favorited;
+    setFavorited(next); // optimistic
+    await fetch(`/api/assets/${asset.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ isFavorited: next })
+    });
+  }
+
+  function download() {
+    if (!asset?.contentText) return;
+    const blob = new Blob([asset.contentText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${asset.title}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (loading) return <p className="text-sm text-[#9C9690]">กำลังโหลด...</p>;
   if (!asset) return <p className="text-sm text-[#9C9690]">ไม่พบไฟล์นี้</p>;
 
   return (
     <div>
-      <p className="text-xs uppercase tracking-wider text-[#9C9690] mb-2">Generation Recipe</p>
-      <h1 className="font-serif text-2xl mb-8">{asset.title}</h1>
+      <div className="flex items-start justify-between gap-4 mb-2">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-[#9C9690]">Generation Recipe</p>
+          <h1 className="font-serif text-2xl mt-1">{asset.title}</h1>
+        </div>
 
-      <div className="flex items-center justify-between rounded-2xl bg-gold/10 border border-gold/30 px-4 py-3 mb-6">
+        {/* ปุ่มถูกใจ + ดาวน์โหลด */}
+        <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+          {asset.contentText && (
+            <button
+              onClick={download}
+              className="text-sm text-[#9C9690] hover:text-bone border border-[#2C2A35] hover:border-[#9C9690] rounded-xl px-3 py-1.5"
+              title="ดาวน์โหลด .txt"
+            >
+              ดาวน์โหลด .txt
+            </button>
+          )}
+          <button
+            onClick={toggleFavorite}
+            className={`text-xl px-2 ${favorited ? 'text-red' : 'text-[#9C9690]'}`}
+            aria-label="ถูกใจ"
+          >
+            {favorited ? '♥' : '♡'}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-2xl bg-gold/10 border border-gold/30 px-4 py-3 mb-6 mt-6">
         <span className="text-sm">ต้นทุนรวมที่ใช้สร้างไฟล์นี้</span>
         <span className="font-mono font-bold text-gold">~{totalCost} เครดิต</span>
       </div>
@@ -75,6 +124,12 @@ export default function AssetDetailPage() {
           {asset.contentText}
         </article>
       )}
+
+      <div className="mt-6">
+        <Link href="/assets" className="text-sm text-[#9C9690] hover:text-bone">
+          ← กลับคลังไฟล์
+        </Link>
+      </div>
     </div>
   );
 }
