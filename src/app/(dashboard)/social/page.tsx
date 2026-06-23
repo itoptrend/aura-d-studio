@@ -5,22 +5,22 @@ import Link from 'next/link';
 
 interface Credential { id: string; displayName: string; providerCode: string; }
 interface Provider { code: string; models: { modelCode: string; displayName: string }[]; }
-interface Character { id: string; name: string; avatarEmoji: string; role: string; }
+interface Character { id: string; name: string; avatarEmoji: string; }
 interface Skill { id: string; name: string; category: string; }
 
 const PLATFORMS = [
-  { code: 'facebook',  label: 'Facebook',   emoji: '📘', color: '#1877F2' },
-  { code: 'instagram', label: 'Instagram',  emoji: '📸', color: '#E1306C' },
-  { code: 'tiktok',    label: 'TikTok',     emoji: '🎵', color: '#010101' },
-  { code: 'youtube',   label: 'YouTube',    emoji: '▶️',  color: '#FF0000' },
-  { code: 'linkedin',  label: 'LinkedIn',   emoji: '💼', color: '#0A66C2' },
-  { code: 'twitter',   label: 'Twitter/X',  emoji: '✖️',  color: '#000000' },
+  { code: 'facebook',  label: 'Facebook',   emoji: '📘' },
+  { code: 'instagram', label: 'Instagram',  emoji: '📸' },
+  { code: 'tiktok',    label: 'TikTok',     emoji: '🎵' },
+  { code: 'youtube',   label: 'YouTube',    emoji: '▶️'  },
+  { code: 'linkedin',  label: 'LinkedIn',   emoji: '💼' },
+  { code: 'twitter',   label: 'Twitter/X',  emoji: '✖️'  },
 ];
 
 const CONTENT_TYPES: Record<string, { code: string; label: string; description: string }[]> = {
   facebook:  [
-    { code: 'caption', label: 'แคปชั่นโพสต์', description: 'โพสต์ทั่วไป + hashtag' },
-    { code: 'ads',     label: 'โฆษณา Ads',    description: 'Copy AIDA 3 versions' }
+    { code: 'caption', label: 'แคปชั่นโพสต์',   description: 'โพสต์ทั่วไป + hashtag' },
+    { code: 'ads',     label: 'โฆษณา Ads',       description: 'Copy AIDA 3 versions' }
   ],
   instagram: [
     { code: 'caption', label: 'แคปชั่น + Hashtag', description: 'โพสต์รูปภาพ' },
@@ -31,7 +31,7 @@ const CONTENT_TYPES: Record<string, { code: string; label: string; description: 
     { code: 'hook',    label: 'Hook 5 แบบ',     description: 'ไอเดีย Hook หยุดคนเลื่อน' }
   ],
   youtube:   [
-    { code: 'script',  label: 'สคริปต์วิดีโอ', description: 'Hook + เนื้อหา + CTA ระบุเวลา' },
+    { code: 'script',  label: 'สคริปต์วิดีโอ',           description: 'Hook + เนื้อหา + CTA ระบุเวลา' },
     { code: 'seo',     label: 'Title + Description + Tags', description: 'YouTube SEO' }
   ],
   linkedin:  [
@@ -43,6 +43,16 @@ const CONTENT_TYPES: Record<string, { code: string; label: string; description: 
   ]
 };
 
+// Placeholder examples per platform
+const PLACEHOLDERS: Record<string, { topic: string; product: string; target: string; extra: string }> = {
+  facebook:  { topic: 'เปิดตัวสินค้าใหม่', product: 'ครีมบำรุงผิว AuraGlow', target: 'ผู้หญิงอายุ 25-35 ปี', extra: 'เนื้อบางเบา ซึมเร็ว SPF50' },
+  instagram: { topic: 'Skincare routine เช้า', product: 'เซรั่มวิตามินซี', target: 'สาวๆ รักผิว', extra: 'ลดฝ้า กระ ผิวกระจ่างใส' },
+  tiktok:    { topic: '3 เคล็ดลับผิวสวยง่ายๆ', product: 'ครีมกันแดด', target: 'วัยรุ่น Gen Z', extra: 'ใช้ง่าย ราคาไม่แพง' },
+  youtube:   { topic: 'รีวิวครีมกันแดด 5 ยี่ห้อ', product: 'ครีมกันแดด', target: 'คนชอบดูแลผิว', extra: 'เปรียบเทียบราคา texture และความคุ้มค่า' },
+  linkedin:  { topic: 'Digital Marketing Trends 2025', product: 'Aura-D Studio', target: 'นักการตลาดและเจ้าของธุรกิจ', extra: 'AI ช่วยสร้างคอนเทนต์ได้เร็วขึ้น 10x' },
+  twitter:   { topic: 'Tips การทำ Content Marketing', product: '', target: 'Content Creator ไทย', extra: 'เน้น practical tips ที่ทำได้ทันที' },
+};
+
 export default function SocialContentPage() {
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -52,6 +62,10 @@ export default function SocialContentPage() {
   const [platform, setPlatform] = useState('facebook');
   const [contentType, setContentType] = useState('caption');
   const [topic, setTopic] = useState('');
+  const [product, setProduct] = useState('');
+  const [target, setTarget] = useState('');
+  const [extra, setExtra] = useState('');
+
   const [credentialId, setCredentialId] = useState('');
   const [modelCode, setModelCode] = useState('');
   const [characterId, setCharacterId] = useState('');
@@ -78,25 +92,43 @@ export default function SocialContentPage() {
   const selectedCredential = credentials.find((c) => c.id === credentialId);
   const selectedProvider = providers.find((p) => p.code === selectedCredential?.providerCode);
   const currentPlatform = PLATFORMS.find((p) => p.code === platform)!;
-  const contentTypes = CONTENT_TYPES[platform] ?? [];
+  const ph = PLACEHOLDERS[platform];
 
-  // Reset content type when platform changes
   function handlePlatformChange(p: string) {
     setPlatform(p);
     setContentType(CONTENT_TYPES[p]?.[0]?.code ?? '');
     setResult(null);
   }
 
+  // Build combined topic from filled fields
+  function buildTopic(): string {
+    const parts = [];
+    if (topic.trim())   parts.push(`หัวข้อ: ${topic.trim()}`);
+    if (product.trim()) parts.push(`สินค้า/แบรนด์: ${product.trim()}`);
+    if (target.trim())  parts.push(`กลุ่มเป้าหมาย: ${target.trim()}`);
+    if (extra.trim())   parts.push(`รายละเอียดเพิ่มเติม: ${extra.trim()}`);
+    return parts.join(' | ');
+  }
+
+  const hasInput = topic.trim() || product.trim() || target.trim() || extra.trim();
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!hasInput) return;
     setError(null);
     setResult(null);
     setLoading(true);
+
     const res = await fetch('/api/workflows/social-content/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ platform, contentType, topic, credentialId, modelCode,
-        characterId: characterId || undefined, skillId: skillId || undefined })
+      body: JSON.stringify({
+        platform, contentType,
+        topic: buildTopic(),
+        credentialId, modelCode,
+        characterId: characterId || undefined,
+        skillId: skillId || undefined
+      })
     });
     const data = await res.json();
     setLoading(false);
@@ -135,10 +167,10 @@ export default function SocialContentPage() {
       </div>
 
       {/* Content type selector */}
-      <div className="mb-5">
+      <div className="mb-6">
         <label className="block text-xs text-[#9C9690] mb-2">ประเภทคอนเทนต์</label>
         <div className="flex gap-2 flex-wrap">
-          {contentTypes.map((ct) => (
+          {CONTENT_TYPES[platform]?.map((ct) => (
             <button key={ct.code} onClick={() => { setContentType(ct.code); setResult(null); }}
               className={`text-left text-xs px-3 py-2 rounded-xl border transition-colors ${
                 contentType === ct.code ? 'border-gold bg-gold/10 text-gold font-semibold' : 'border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690]'
@@ -151,23 +183,64 @@ export default function SocialContentPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
-        {/* Topic */}
-        <div>
-          <label className="block text-xs text-[#9C9690] mb-1.5">หัวข้อ / สินค้า / เนื้อหา</label>
-          <textarea required value={topic} onChange={(e) => setTopic(e.target.value)}
-            placeholder={`เช่น ${currentPlatform.emoji} ${
-              platform === 'tiktok' ? 'วิธีดูแลผิวหน้าง่ายๆ 3 ขั้นตอน'
-              : platform === 'youtube' ? 'รีวิวครีมกันแดด 5 ยี่ห้อยอดฮิต'
-              : 'ครีมบำรุงผิวสูตรใหม่ เนื้อบางเบา ซึมเร็ว'
-            }`}
-            className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[80px] resize-none" />
+
+        {/* Input fields — separate boxes */}
+        <div className="rounded-2xl border border-[#2C2A35] p-4 space-y-3">
+          <p className="text-xs text-[#9C9690] font-semibold uppercase tracking-wider">
+            ข้อมูลสำหรับสร้างคอนเทนต์ — กรอกอย่างน้อย 1 ช่อง
+          </p>
+
+          {/* หัวข้อ */}
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1">
+              หัวข้อ
+              <span className="ml-1 text-[10px] text-[#9C9690]/60">เช่น {ph.topic}</span>
+            </label>
+            <input value={topic} onChange={(e) => setTopic(e.target.value)}
+              placeholder={ph.topic}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
+          </div>
+
+          {/* ชื่อสินค้า/แบรนด์ */}
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1">
+              ชื่อสินค้า / แบรนด์
+              {ph.product && <span className="ml-1 text-[10px] text-[#9C9690]/60">เช่น {ph.product}</span>}
+            </label>
+            <input value={product} onChange={(e) => setProduct(e.target.value)}
+              placeholder={ph.product || 'เช่น AuraGlow, ร้านกาแฟ The Brew'}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
+          </div>
+
+          {/* กลุ่มเป้าหมาย */}
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1">
+              กลุ่มเป้าหมาย
+              <span className="ml-1 text-[10px] text-[#9C9690]/60">เช่น {ph.target}</span>
+            </label>
+            <input value={target} onChange={(e) => setTarget(e.target.value)}
+              placeholder={ph.target}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
+          </div>
+
+          {/* รายละเอียดเพิ่มเติม */}
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1">
+              รายละเอียดเพิ่มเติม / จุดเด่นสินค้า
+              <span className="ml-1 text-[10px] text-[#9C9690]/60">เช่น {ph.extra}</span>
+            </label>
+            <textarea value={extra} onChange={(e) => setExtra(e.target.value)}
+              placeholder={ph.extra}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[72px] resize-none" />
+          </div>
         </div>
 
-        {/* AI selector */}
+        {/* AI + Model */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">AI ที่ใช้</label>
-            <select required value={credentialId} onChange={(e) => { setCredentialId(e.target.value); setModelCode(''); }}
+            <select required value={credentialId}
+              onChange={(e) => { setCredentialId(e.target.value); setModelCode(''); }}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">เลือก AI</option>
               {credentials.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
@@ -179,39 +252,52 @@ export default function SocialContentPage() {
               <select required value={modelCode} onChange={(e) => setModelCode(e.target.value)}
                 className="w-full rounded-xl px-3.5 py-2.5 text-sm">
                 <option value="">เลือกโมเดล</option>
-                {selectedProvider.models.map((m) => <option key={m.modelCode} value={m.modelCode}>{m.displayName}</option>)}
+                {selectedProvider.models.map((m) => (
+                  <option key={m.modelCode} value={m.modelCode}>{m.displayName}</option>
+                ))}
               </select>
             </div>
           )}
         </div>
 
-        {/* Optional: Character + Skill */}
+        {/* Character + Skill (optional) */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-[#9C9690] mb-1.5">ตัวละคร (optional)</label>
+            <label className="block text-xs text-[#9C9690] mb-1.5">
+              ตัวละคร <span className="text-[10px] text-[#9C9690]/60">(optional)</span>
+            </label>
             <select value={characterId} onChange={(e) => setCharacterId(e.target.value)}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">ไม่ใช้ตัวละคร</option>
-              {characters.map((c) => <option key={c.id} value={c.id}>{c.avatarEmoji} {c.name}</option>)}
+              {characters.map((c) => (
+                <option key={c.id} value={c.id}>{c.avatarEmoji} {c.name}</option>
+              ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs text-[#9C9690] mb-1.5">Skill (optional)</label>
+            <label className="block text-xs text-[#9C9690] mb-1.5">
+              Skill <span className="text-[10px] text-[#9C9690]/60">(optional)</span>
+            </label>
             <select value={skillId} onChange={(e) => setSkillId(e.target.value)}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">ใช้ prompt เริ่มต้น</option>
-              {skills.filter((s) => s.category === 'social' || s.category === 'video').map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
+              {skills
+                .filter((s) => s.category === 'social' || s.category === 'video')
+                .map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
         </div>
 
+        {!hasInput && (
+          <p className="text-xs text-[#9C9690]">กรอกอย่างน้อย 1 ช่องด้านบน</p>
+        )}
         {error && <p className="text-sm text-[#C9716A]">{error}</p>}
 
-        <button type="submit" disabled={loading}
+        <button type="submit" disabled={loading || !hasInput || !credentialId || !modelCode}
           className="rounded-xl bg-gold text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50">
-          {loading ? `กำลังสร้าง ${currentPlatform.emoji} ${contentType}...` : `สร้าง ${currentPlatform.label} Content`}
+          {loading
+            ? `กำลังสร้าง ${currentPlatform.emoji}...`
+            : `สร้าง ${currentPlatform.label} Content`}
         </button>
       </form>
 
@@ -230,7 +316,7 @@ export default function SocialContentPage() {
               ดู Generation Recipe →
             </Link>
             <a href={`data:text/plain;charset=utf-8,${encodeURIComponent(result.text)}`}
-              download={`${platform}-${contentType}-${topic.slice(0,20)}.txt`}
+              download={`${platform}-${contentType}.txt`}
               className="text-sm font-semibold text-[#9C9690]">
               ดาวน์โหลด .txt
             </a>
