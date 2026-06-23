@@ -26,18 +26,20 @@ export default function ConnectedAiPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function loadAll() {
-    const [providersRes, credentialsRes] = await Promise.all([fetch('/api/ai-providers'), fetch('/api/credentials')]);
+    const [providersRes, credentialsRes] = await Promise.all([
+      fetch('/api/ai-providers'),
+      fetch('/api/credentials')
+    ]);
     const providersData = await providersRes.json();
     const credentialsData = await credentialsRes.json();
     setProviders(providersData.providers ?? []);
     setCredentials(credentialsData.credentials ?? []);
   }
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+  useEffect(() => { loadAll(); }, []);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -67,9 +69,25 @@ export default function ConnectedAiPage() {
     });
     const data = await res.json();
     setTestingId(null);
-    alert(data.ok ? 'Key ใช้งานได้ปกติ' : `ทดสอบไม่ผ่าน: ${data.reason}`);
+    alert(data.ok ? '✓ Key ใช้งานได้ปกติ' : `ทดสอบไม่ผ่าน: ${data.reason}`);
     await loadAll();
   }
+
+  async function handleDelete(credentialId: string, displayName: string) {
+    if (!confirm(`ลบ "${displayName}" ออกจากระบบ?\n\nKey นี้จะถูกลบถาวร หากต้องการใช้ภายหลังต้องเพิ่มใหม่`)) return;
+    setDeletingId(credentialId);
+    const res = await fetch(`/api/credentials/${credentialId}`, { method: 'DELETE' });
+    setDeletingId(null);
+    if (!res.ok) {
+      alert('ลบไม่สำเร็จ กรุณาลองใหม่');
+      return;
+    }
+    await loadAll();
+  }
+
+  const selectedCredential = credentials.find((c) => c.id === '');
+  const selectedProvider = providers.find((p) => p.code === form.providerCode);
+  void selectedCredential;
 
   return (
     <div>
@@ -78,12 +96,18 @@ export default function ConnectedAiPage() {
         เพิ่ม API Key ของผู้ให้บริการ AI ที่คุณมีสิทธิ์ใช้งานเอง — Aura-D Studio ไม่ขายเครดิต AI (spec §1.6)
       </p>
 
+      {/* Existing credentials */}
       <div className="space-y-3 mb-10">
-        {credentials.length === 0 && <p className="text-sm text-[#9C9690]">ยังไม่ได้เชื่อมต่อ AI ตัวไหนเลย</p>}
+        {credentials.length === 0 && (
+          <p className="text-sm text-[#9C9690]">ยังไม่ได้เชื่อมต่อ AI ตัวไหนเลย</p>
+        )}
         {credentials.map((c) => (
-          <div key={c.id} className="flex items-center justify-between rounded-2xl border border-[#2C2A35] px-4 py-3">
-            <div>
-              <div className="flex items-center gap-2">
+          <div
+            key={c.id}
+            className="flex items-center justify-between rounded-2xl border border-[#2C2A35] px-4 py-3"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-semibold">{c.displayName}</span>
                 {c.isFreeTier && (
                   <span className="text-[10px] font-bold text-gold bg-gold/10 px-2 py-0.5 rounded-full">
@@ -100,20 +124,33 @@ export default function ConnectedAiPage() {
               </div>
               <p className="text-xs text-[#9C9690] mt-1">
                 {c.provider.displayName} ·{' '}
-                {c.lastVerifiedAt ? `ทดสอบล่าสุด ${new Date(c.lastVerifiedAt).toLocaleString('th-TH')}` : 'ยังไม่ทดสอบ'}
+                {c.lastVerifiedAt
+                  ? `ทดสอบล่าสุด ${new Date(c.lastVerifiedAt).toLocaleString('th-TH')}`
+                  : 'ยังไม่ทดสอบ'}
               </p>
             </div>
-            <button
-              onClick={() => handleTest(c.id)}
-              disabled={testingId === c.id}
-              className="text-xs font-semibold text-gold border border-gold/40 rounded-lg px-3 py-1.5 disabled:opacity-50"
-            >
-              {testingId === c.id ? 'กำลังทดสอบ...' : 'ทดสอบ'}
-            </button>
+
+            <div className="flex gap-2 ml-3 flex-shrink-0">
+              <button
+                onClick={() => handleTest(c.id)}
+                disabled={testingId === c.id || deletingId === c.id}
+                className="text-xs font-semibold text-gold border border-gold/40 rounded-lg px-3 py-1.5 disabled:opacity-50"
+              >
+                {testingId === c.id ? 'กำลังทดสอบ...' : 'ทดสอบ'}
+              </button>
+              <button
+                onClick={() => handleDelete(c.id, c.displayName)}
+                disabled={deletingId === c.id || testingId === c.id}
+                className="text-xs font-semibold text-[#C9716A] border border-[#C9716A]/40 rounded-lg px-3 py-1.5 disabled:opacity-50"
+              >
+                {deletingId === c.id ? 'กำลังลบ...' : 'ลบ'}
+              </button>
+            </div>
           </div>
         ))}
       </div>
 
+      {/* Add new credential form */}
       <h2 className="text-sm font-semibold mb-3">เชื่อมต่อ AI Provider ใหม่</h2>
       <form onSubmit={handleAdd} className="space-y-3 max-w-md">
         <select
@@ -131,7 +168,7 @@ export default function ConnectedAiPage() {
         </select>
         <input
           required
-          placeholder="ตั้งชื่อ เช่น Claude บัญชีบริษัท"
+          placeholder="ตั้งชื่อ เช่น Gemini บัญชีส่วนตัว"
           value={form.displayName}
           onChange={(e) => setForm({ ...form, displayName: e.target.value })}
           className="w-full rounded-xl px-3.5 py-2.5 text-sm"
@@ -144,7 +181,23 @@ export default function ConnectedAiPage() {
           onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
           className="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono"
         />
+
+        {/* Model preview — shows which models are available for this provider */}
+        {selectedProvider && selectedProvider.models.length > 0 && (
+          <div className="rounded-xl border border-[#2C2A35] px-3.5 py-3">
+            <p className="text-xs text-[#9C9690] mb-2">โมเดลที่รองรับ ({selectedProvider.models.length} รุ่น)</p>
+            <div className="space-y-1">
+              {selectedProvider.models.map((m) => (
+                <p key={m.modelCode} className="text-xs text-bone font-mono">
+                  {m.displayName}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+
         {error && <p className="text-sm text-[#C9716A]">{error}</p>}
+
         <button
           type="submit"
           disabled={submitting}

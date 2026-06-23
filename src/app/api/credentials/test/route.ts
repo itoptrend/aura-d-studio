@@ -4,9 +4,16 @@ import { prisma } from '@/lib/db';
 import { getCurrentTeamId } from '@/lib/session';
 import { decryptSecret } from '@/lib/encryption';
 import { testAnthropicKey } from '@/lib/ai/anthropic';
+import { testGeminiKey } from '@/lib/ai/google';
+import { testGrokKey } from '@/lib/ai/grok';
 
-const TESTABLE_PROVIDERS: Record<string, (key: string) => ReturnType<typeof testAnthropicKey>> = {
-  anthropic: testAnthropicKey
+type TestResult = { ok: true } | { ok: false; reason: string };
+type Tester = (key: string) => Promise<TestResult>;
+
+const TESTABLE_PROVIDERS: Record<string, Tester> = {
+  anthropic: testAnthropicKey,
+  google: testGeminiKey,
+  xai: testGrokKey
 };
 
 const testSchema = z.object({ credentialId: z.string().uuid() });
