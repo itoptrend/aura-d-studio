@@ -80,6 +80,7 @@ model AiModel {
   providerCode String  @map("provider_code")
   modelCode    String  @map("model_code") // e.g. 'claude-sonnet-4-6'
   displayName  String  @map("display_name")
+  capability   String  @default("text") // 'text' | 'image' | 'video' | 'audio'
   isActive     Boolean @default(true) @map("is_active")
 
   provider       AiProvider      @relation(fields: [providerCode], references: [code])

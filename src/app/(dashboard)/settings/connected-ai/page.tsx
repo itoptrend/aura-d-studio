@@ -6,7 +6,7 @@ interface Provider {
   code: string;
   displayName: string;
   capabilities: string[];
-  models: { modelCode: string; displayName: string }[];
+  models: { modelCode: string; displayName: string; capability: string }[];
 }
 
 interface CredentialRow {
@@ -182,16 +182,24 @@ export default function ConnectedAiPage() {
           className="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono"
         />
 
-        {/* Model preview — shows which models are available for this provider */}
+        {/* Model preview — shows which models are available for this provider, grouped by capability */}
         {selectedProvider && selectedProvider.models.length > 0 && (
           <div className="rounded-xl border border-[#2C2A35] px-3.5 py-3">
             <p className="text-xs text-[#9C9690] mb-2">โมเดลที่รองรับ ({selectedProvider.models.length} รุ่น)</p>
             <div className="space-y-1">
-              {selectedProvider.models.map((m) => (
-                <p key={m.modelCode} className="text-xs text-bone font-mono">
-                  {m.displayName}
-                </p>
-              ))}
+              {(['text', 'image', 'video', 'audio'] as const).map((cap) => {
+                const capModels = selectedProvider.models.filter((m) => m.capability === cap);
+                if (capModels.length === 0) return null;
+                const capLabel: Record<string, string> = { text: '✏️ ข้อความ', image: '🖼️ ภาพ', video: '🎬 วิดีโอ', audio: '🔊 เสียง' };
+                return (
+                  <div key={cap}>
+                    <p className="text-[10px] text-[#9C9690] font-semibold uppercase tracking-wider mt-2 mb-1">{capLabel[cap]}</p>
+                    {capModels.map((m) => (
+                      <p key={m.modelCode} className="text-xs text-bone font-mono pl-2">{m.displayName}</p>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

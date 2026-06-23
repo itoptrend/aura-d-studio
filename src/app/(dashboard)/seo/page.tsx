@@ -6,7 +6,7 @@ import Link from 'next/link';
 interface Provider {
   code: string;
   displayName: string;
-  models: { modelCode: string; displayName: string }[];
+  models: { modelCode: string; displayName: string; capability: string }[];
 }
 
 interface CredentialOption {
@@ -28,7 +28,10 @@ export default function SeoArticlePage() {
 
   useEffect(() => {
     async function load() {
-      const [providersRes, credentialsRes] = await Promise.all([fetch('/api/ai-providers'), fetch('/api/credentials')]);
+      const [providersRes, credentialsRes] = await Promise.all([
+        fetch('/api/ai-providers?capability=text'), // แสดงเฉพาะโมเดลเขียนข้อความ
+        fetch('/api/credentials')
+      ]);
       const providersData = await providersRes.json();
       const credentialsData = await credentialsRes.json();
       setProviders(providersData.providers ?? []);
