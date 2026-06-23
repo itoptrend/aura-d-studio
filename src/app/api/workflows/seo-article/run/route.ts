@@ -4,11 +4,8 @@ import { prisma } from '@/lib/db';
 import { getCurrentTeamId } from '@/lib/session';
 import { decryptSecret } from '@/lib/encryption';
 import { generateText, estimateCreditCost, AnthropicApiError } from '@/lib/ai/anthropic';
-
-// This route is the first full vertical slice through the architecture:
-//   workflow → run → node_execution → asset
-// matching spec §13 data model and §9 SEO Article module, simplified to a
-// single text-generation node (no outline/draft/optimize sub-steps yet).
+import { generateTextGemini } from '@/lib/ai/google';
+import { generateTextGrok } from '@/lib/ai/grok';
 
 const runSchema = z.object({
   topic: z.string().min(3, 'กรอกหัวข้อบทความอย่างน้อย 3 ตัวอักษร'),
@@ -16,6 +13,32 @@ const runSchema = z.object({
   credentialId: z.string().uuid(),
   modelCode: z.string().min(1)
 });
+
+type GenerateParams = {
+  apiKey: string;
+  model: string;
+  system?: string;
+  prompt: string;
+  maxTokens?: number;
+};
+
+// AI Gateway — routes each request to the correct provider function.
+// Adding a new provider = add one entry here (spec §5.5 Provider-Agnostic).
+async function callAI(
+  providerCode: string,
+  params: GenerateParams
+): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
+  switch (providerCode) {
+    case 'anthropic':
+      return generateText(params);
+    case 'google':
+      return generateTextGemini(params);
+    case 'xai':
+      return generateTextGrok(params);
+    default:
+      throw new Error(`ยังไม่รองรับ provider "${providerCode}" ในโมดูลนี้`);
+  }
+}
 
 export async function POST(req: Request) {
   const teamId = await getCurrentTeamId();
@@ -43,9 +66,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'ไม่พบโมเดลที่เลือก' }, { status: 404 });
   }
 
-  // 1) Create the workflow + run + node_execution rows BEFORE calling the
-  //    AI, so the attempt is recorded even if the API call itself fails —
-  //    matches §14.2 Reliability: every external AI call is auditable.
   const workflow = await prisma.workflow.create({
     data: { teamId, name: `บทความ SEO: ${topic}`, category: 'seo_article' }
   });
@@ -73,7 +93,7 @@ export async function POST(req: Request) {
       'จัดโครงสร้างด้วย Heading ชัดเจน (H1 หนึ่งอัน, H2 หลายอัน) ความยาวรวมประมาณ 600-900 คำ'
     ].join(' ');
 
-    const result = await generateText({
+    const result = await callAI(credential.providerCode, {
       apiKey,
       model: modelCode,
       system,
@@ -97,8 +117,6 @@ export async function POST(req: Request) {
       data: { status: 'succeeded', finishedAt: new Date() }
     });
 
-    // 2) Save the result as an asset — this is what shows up in Asset
-    //    Library / Generation Recipe (§4.6).
     const asset = await prisma.asset.create({
       data: {
         teamId,
@@ -110,11 +128,8 @@ export async function POST(req: Request) {
       }
     });
 
-    return NextResponse.json({
-      assetId: asset.id,
-      text: result.text,
-      costCredit
-    });
+    return NextResponse.json({ assetId: asset.id, text: result.text, costCredit });
+
   } catch (err) {
     await prisma.nodeExecution.update({
       where: { id: nodeExecution.id },
@@ -135,6 +150,7 @@ export async function POST(req: Request) {
     if (err instanceof AnthropicApiError && err.status === 429) {
       return NextResponse.json({ error: 'ใช้ครบโควต้าของ key นี้แล้ว ลองอีกครั้งภายหลังหรือสลับ AI' }, { status: 429 });
     }
-    return NextResponse.json({ error: 'สร้างบทความไม่สำเร็จ ลองใหม่อีกครั้ง' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : 'สร้างบทความไม่สำเร็จ';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
