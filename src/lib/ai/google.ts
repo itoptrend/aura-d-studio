@@ -9,7 +9,7 @@ export async function testGeminiKey(
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   try {
     const res = await fetch(
-      `${GEMINI_API_BASE}/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+      `${GEMINI_API_BASE}/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
