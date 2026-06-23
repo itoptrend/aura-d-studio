@@ -31,7 +31,5 @@ export async function GET(req: Request) {
   });
 
   // Only return providers that have at least one model after filtering
-  const filtered = providers.filter((p: { models: unknown[] }) => p.models.length > 0);
-
-  return NextResponse.json({ providers: filtered });
+  return NextResponse.json({ providers });
 }
