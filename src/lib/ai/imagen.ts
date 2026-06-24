@@ -129,7 +129,64 @@ export async function generateImageGrok(params: {
   };
 }
 
-// ─── GATEWAY ─────────────────────────────────────────────────────────────────
+// OpenAI size map per model
+// gpt-image-1: 1024x1024, 1536x1024, 1024x1536
+// gpt-image-2: arbitrary WxH divisible by 16
+const OPENAI_SIZE: Record<string, Record<string, string>> = {
+  default: {
+    '1:1':  '1024x1024',
+    '16:9': '1536x1024',
+    '9:16': '1024x1536',
+    '4:3':  '1024x768',   // approx, gpt-image-2
+    '3:4':  '768x1024',
+    '4:5':  '816x1024',
+  }
+};
+
+// ─── OPENAI IMAGE (gpt-image-1, gpt-image-2 etc.) ────────────────────────────
+export async function generateImageOpenAI(params: {
+  apiKey: string;
+  model: string;    // 'gpt-image-1' | 'gpt-image-1-mini' | 'gpt-image-2'
+  prompt: string;
+  aspectRatio?: string;
+}): Promise<ImageResult> {
+  const ar = params.aspectRatio ?? '1:1';
+  const size = OPENAI_SIZE.default[ar] ?? '1024x1024';
+
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      Authorization: `Bearer ${params.apiKey}`
+    },
+    body: JSON.stringify({
+      model: params.model,
+      prompt: params.prompt,
+      n: 1,
+      size,
+      response_format: 'b64_json'
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    if (res.status === 401) throw new Error('OpenAI API key ไม่ถูกต้อง');
+    if (res.status === 429) throw new Error('OpenAI API เกิน rate limit — ลองใหม่ภายหลัง');
+    throw new Error(`OpenAI Image API error (${res.status}): ${err}`);
+  }
+
+  const data = await res.json();
+  const b64 = data.data?.[0]?.b64_json;
+  if (!b64) throw new Error('OpenAI ไม่ได้ส่งรูปภาพกลับมา');
+
+  return {
+    dataUrl: `data:image/png;base64,${b64}`,
+    mimeType: 'image/png',
+    provider: 'openai',
+    model: params.model,
+    promptUsed: params.prompt
+  };
+}
 export async function generateImage(providerCode: string, params: {
   apiKey: string;
   model: string;
@@ -140,6 +197,7 @@ export async function generateImage(providerCode: string, params: {
   switch (providerCode) {
     case 'google': return generateImageGemini(params);
     case 'xai':    return generateImageGrok(params);
+    case 'openai': return generateImageOpenAI(params);
     default: throw new Error(`Provider "${providerCode}" ยังไม่รองรับการสร้างภาพ`);
   }
 }

@@ -36,6 +36,13 @@ const CORRECT_IMAGE_MODELS = [
   }
 ];
 
+// OpenAI image models — add separately
+const OPENAI_IMAGE_MODELS = [
+  { providerCode: 'openai', modelCode: 'gpt-image-1',      displayName: 'GPT Image 1 — คุณภาพสูง รองรับข้อความในภาพ', capability: 'image', isActive: true },
+  { providerCode: 'openai', modelCode: 'gpt-image-1-mini', displayName: 'GPT Image 1 Mini — เร็ว ประหยัด',              capability: 'image', isActive: true },
+  { providerCode: 'openai', modelCode: 'gpt-image-2',      displayName: 'GPT Image 2 — Arbitrary Resolution สูงสุด',    capability: 'image', isActive: true },
+];
+
 async function main() {
   console.log('🔧 แก้ไขโมเดลสร้างภาพ...\n');
 
@@ -50,7 +57,7 @@ async function main() {
     }
   }
 
-  // upsert โมเดลที่ถูกต้อง
+  // upsert โมเดล Google image
   for (const m of CORRECT_IMAGE_MODELS) {
     await prisma.aiModel.upsert({
       where: { providerCode_modelCode: { providerCode: m.providerCode, modelCode: m.modelCode } },
@@ -60,7 +67,17 @@ async function main() {
     console.log(`✅ พร้อมใช้: ${m.displayName}`);
   }
 
-  console.log('\nเสร็จแล้ว — รีเฟรชหน้าสร้างภาพ แล้วเลือก "Nano Banana" ครับ');
+  // upsert โมเดล OpenAI image
+  for (const m of OPENAI_IMAGE_MODELS) {
+    await prisma.aiModel.upsert({
+      where: { providerCode_modelCode: { providerCode: m.providerCode, modelCode: m.modelCode } },
+      update: { displayName: m.displayName, capability: m.capability, isActive: true },
+      create: m
+    });
+    console.log(`✅ พร้อมใช้: ${m.displayName}`);
+  }
+
+  console.log('\nเสร็จแล้ว — รีเฟรชหน้าสร้างภาพ แล้วเลือก OpenAI หรือ Google ได้เลยครับ');
 }
 
 main()
