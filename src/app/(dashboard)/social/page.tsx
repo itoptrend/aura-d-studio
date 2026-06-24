@@ -12,6 +12,15 @@ interface Provider { code: string; models: { modelCode: string; displayName: str
 interface Character { id: string; name: string; avatarEmoji: string; }
 interface Skill { id: string; name: string; category: string; }
 
+const TONE_OPTIONS = [
+  { value: '',             label: 'ไม่ระบุ' },
+  { value: 'friendly',     label: '😊 เป็นกันเอง' },
+  { value: 'professional', label: '💼 มืออาชีพ' },
+  { value: 'fun',          label: '🎉 สนุกสนาน' },
+  { value: 'persuasive',   label: '✨ โน้มน้าว' },
+  { value: 'emotional',    label: '💝 อารมณ์สัมผัส' },
+];
+
 const PLATFORMS = [
   { code: 'facebook',  label: 'Facebook',   emoji: '📘' },
   { code: 'instagram', label: 'Instagram',  emoji: '📸' },
@@ -72,9 +81,9 @@ export default function SocialContentPage() {
   const { values: form, setField, clearForm, saveForm, savedAt } = useFormPersist('social', {
     platform: 'facebook', contentType: 'caption',
     topic: '', product: '', target: '', extra: '',
-    credentialId: '', modelCode: '', characterId: '', skillId: ''
+    tone: '', credentialId: '', modelCode: '', characterId: '', skillId: ''
   });
-  const { platform, contentType, topic, product, target, extra, credentialId, modelCode, characterId, skillId } = form;
+  const { platform, contentType, topic, product, target, extra, tone, credentialId, modelCode, characterId, skillId } = form;
 
   useEffect(() => {
     Promise.all([
@@ -116,6 +125,7 @@ export default function SocialContentPage() {
     if (product.trim()) parts.push(`สินค้า/แบรนด์: ${product.trim()}`);
     if (target.trim())  parts.push(`กลุ่มเป้าหมาย: ${target.trim()}`);
     if (extra.trim())   parts.push(`รายละเอียดเพิ่มเติม: ${extra.trim()}`);
+    if (tone) parts.push(`โทน: ${tone}`);
     return parts.join(' | ');
   }
 
@@ -258,6 +268,22 @@ export default function SocialContentPage() {
             <textarea value={extra} onChange={(e) => setField('extra', e.target.value)}
               placeholder={ph.extra}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[72px] resize-none" />
+          </div>
+        </div>
+
+        {/* Tone */}
+        <div>
+          <label className="block text-xs text-[#9C9690] mb-2">โทน <span className="text-[10px] opacity-60">(optional)</span></label>
+          <div className="flex flex-wrap gap-2">
+            {TONE_OPTIONS.map((t) => (
+              <button key={t.value} type="button"
+                onClick={() => setField('tone', t.value)}
+                className={`text-xs px-3 py-1.5 rounded-xl border transition-colors ${
+                  tone === t.value ? 'border-gold bg-gold/10 text-gold font-semibold' : 'border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690]'
+                }`}>
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
 
