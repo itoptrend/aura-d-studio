@@ -64,7 +64,18 @@ export default function ImageGenerationPage() {
     const data = await res.json();
     setLoading(false);
 
-    if (!res.ok) { setError(data.error ?? 'สร้างภาพไม่สำเร็จ'); return; }
+    if (!res.ok) {
+      const msg = data.error ?? 'สร้างภาพไม่สำเร็จ';
+      // Friendly message for 503 / overload errors
+      if (msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('high demand')) {
+        setError(
+          '⏳ Nano Banana Pro มีผู้ใช้งานเยอะมากในขณะนี้ — ลองใหม่อีกครั้ง หรือเปลี่ยนไปใช้ Nano Banana (เร็วกว่า ไม่ติด queue)'
+        );
+      } else {
+        setError(msg);
+      }
+      return;
+    }
     clearForm();
     setResult(data);
   }
@@ -228,7 +239,10 @@ export default function ImageGenerationPage() {
           className="w-full rounded-xl bg-gold text-black font-semibold py-2.5 text-sm disabled:opacity-50">
           {loading ? (
             <span className="flex items-center justify-center gap-2">
-              <span className="animate-spin">⏳</span> กำลังสร้างภาพ... (อาจใช้เวลา 10-30 วินาที)
+              <span className="animate-spin">⏳</span>
+              {modelCode?.includes('pro') || modelCode?.includes('3-pro')
+                ? 'กำลังสร้างภาพ Pro... (อาจใช้เวลา 30-60 วินาที หากคิวยาวจะ retry อัตโนมัติ)'
+                : 'กำลังสร้างภาพ... (อาจใช้เวลา 10-30 วินาที)'}
             </span>
           ) : '🖼️ สร้างภาพ'}
         </button>

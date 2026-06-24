@@ -14,6 +14,28 @@ const runSchema = z.object({
   modelCode:      z.string().min(1)
 });
 
+// Retry with exponential backoff for transient errors (503, 429)
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  delayMs = 3000
+): Promise<T> {
+  let lastError: Error = new Error('Unknown error');
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const msg = lastError.message;
+      const isRetryable = msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('429') || msg.includes('rate limit');
+      if (!isRetryable || attempt === maxAttempts) throw lastError;
+      console.log(`Attempt ${attempt} failed (${msg.slice(0, 60)}...) — retrying in ${delayMs}ms`);
+      await new Promise((r) => setTimeout(r, delayMs * attempt)); // progressive delay
+    }
+  }
+  throw lastError;
+}
+
 export async function POST(req: Request) {
   const teamId = await getCurrentTeamId();
   if (!teamId) return NextResponse.json({ error: 'ยังไม่ได้เข้าสู่ระบบ' }, { status: 401 });
@@ -61,13 +83,13 @@ export async function POST(req: Request) {
 
   try {
     const apiKey = decryptSecret(credential.encryptedKey, credential.encryptionIv);
-    const result = await generateImage(credential.providerCode, {
-      apiKey,
-      model: modelCode,
-      prompt: finalPrompt,
-      negativePrompt,
-      aspectRatio
-    });
+
+    // Retry up to 3 times for 503/UNAVAILABLE (common with high-demand models like Nano Banana Pro)
+    const result = await withRetry(
+      () => generateImage(credential.providerCode, { apiKey, model: modelCode, prompt: finalPrompt, negativePrompt, aspectRatio }),
+      3,
+      3000
+    );
 
     // Store image as base64 data URL in contentText (Phase 2 approach)
     // Phase 3: upload to object storage, store URL instead
