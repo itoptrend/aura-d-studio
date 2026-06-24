@@ -120,9 +120,18 @@ export default function AssetDetailPage() {
       </div>
 
       {asset.contentText && (
-        <article className="whitespace-pre-line text-sm leading-relaxed bg-[#1C1B23] rounded-2xl p-5 border border-[#2C2A35]">
-          {asset.contentText}
-        </article>
+        asset.contentText.startsWith('data:image') ? (
+          // Image asset — show inline
+          <div className="rounded-2xl overflow-hidden border border-[#2C2A35] bg-[#1C1B23]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={asset.contentText} alt={asset.title} className="w-full object-contain max-h-[600px]" />
+          </div>
+        ) : (
+          // Text asset — show as article
+          <article className="whitespace-pre-line text-sm leading-relaxed bg-[#1C1B23] rounded-2xl p-5 border border-[#2C2A35]">
+            {asset.contentText}
+          </article>
+        )
       )}
 
       <div className="mt-6">

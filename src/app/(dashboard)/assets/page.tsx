@@ -35,14 +35,18 @@ export default function AssetsPage() {
     });
   }
 
-  function downloadText(title: string, text: string) {
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
+  function downloadAsset(title: string, content: string, type: string) {
+    const isImage = content.startsWith('data:image');
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title}.txt`;
+    a.href = content;
+    if (isImage) {
+      const ext = content.split(';')[0].split('/')[1] ?? 'png';
+      a.download = `${title}.${ext}`;
+    } else {
+      a.href = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+      a.download = `${title}.txt`;
+    }
     a.click();
-    URL.revokeObjectURL(url);
   }
 
   if (loading) return <p className="text-sm text-[#9C9690]">กำลังโหลด...</p>;
@@ -67,6 +71,14 @@ export default function AssetsPage() {
             key={a.id}
             className="flex items-center justify-between rounded-2xl border border-[#2C2A35] px-4 py-3 gap-3"
           >
+            {/* Image thumbnail for image assets */}
+            {a.type === 'image' && a.contentText?.startsWith('data:image') && (
+              <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-[#1C1B23]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={a.contentText} alt={a.title} className="w-full h-full object-cover" />
+              </div>
+            )}
+
             <Link href={`/assets/${a.id}`} className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{a.title}</p>
               <p className="text-xs text-[#9C9690] mt-1">
@@ -79,10 +91,9 @@ export default function AssetsPage() {
               {/* ปุ่มดาวน์โหลด — แสดงเฉพาะ asset ที่มีเนื้อหาข้อความ */}
               {a.contentText && (
                 <button
-                  onClick={() => downloadText(a.title, a.contentText!)}
+                  onClick={() => downloadAsset(a.title, a.contentText!, a.type)}
                   className="text-xs text-[#9C9690] hover:text-bone px-2 py-1 rounded-lg border border-[#2C2A35] hover:border-[#9C9690]"
-                  aria-label="ดาวน์โหลด"
-                  title="ดาวน์โหลด .txt"
+                  title={a.type === 'image' ? 'ดาวน์โหลดภาพ' : 'ดาวน์โหลด .txt'}
                 >
                   ↓
                 </button>

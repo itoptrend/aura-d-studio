@@ -16,6 +16,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Link href="/seo" className="hover:text-bone">เขียนบทความ SEO</Link>
             <Link href="/social" className="hover:text-bone">Social Content</Link>
             <Link href="/video" className="hover:text-bone">Video/Ad</Link>
+            <Link href="/image" className="hover:text-bone">สร้างภาพ</Link>
             <Link href="/characters" className="hover:text-bone">Character Engine</Link>
             <Link href="/skills" className="hover:text-bone">Skill Library</Link>
             <Link href="/assets" className="hover:text-bone">คลังไฟล์</Link>
