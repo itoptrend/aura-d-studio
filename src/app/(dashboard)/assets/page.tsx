@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 
 interface AssetRow {
   id: string;
@@ -23,6 +24,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export default function AssetsPage() {
+  const { success, error: toastError } = useToast();
   const [assets, setAssets] = useState<AssetRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -101,10 +103,15 @@ export default function AssetsPage() {
       });
       let data: { deleted?: number; error?: string } = {};
       try { data = await res.json(); } catch { data = { error: `HTTP ${res.status}` }; }
-      if (res.ok) { exitSelectMode(); await load(); }
-      else alert(data.error ?? 'ลบไม่สำเร็จ');
+      if (res.ok) {
+        exitSelectMode();
+        await load();
+        success(`ลบสำเร็จ ${data.deleted ?? selected.size} รายการ`);
+      } else {
+        toastError(data.error ?? 'ลบไม่สำเร็จ');
+      }
     } catch (err) {
-      alert('เกิดข้อผิดพลาด: ' + (err instanceof Error ? err.message : 'network error'));
+      toastError('เกิดข้อผิดพลาด: ' + (err instanceof Error ? err.message : 'network error'));
     } finally {
       setDeleting(false);
       setConfirmDelete(false);
