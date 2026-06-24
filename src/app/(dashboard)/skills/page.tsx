@@ -23,11 +23,68 @@ const CATEGORIES = [
 ];
 
 const CATEGORY_LABEL: Record<string, string> = {
-  seo: '✏️ SEO', social: '📱 Social', character: '🎭 Character', video: '🎬 Video', general: '⚡ ทั่วไป'
+  seo: '✏️ SEO', social: '📱 Social', character: '🎭 Character',
+  video: '🎬 Video', general: '⚡ ทั่วไป'
 };
 
 const EMPTY_FORM = { name: '', description: '', category: 'general', promptTemplate: '' };
 
+// ─── SkillCard — defined outside component to avoid re-creation on every render ───
+interface SkillCardProps {
+  skill: Skill;
+  isCustom?: boolean;
+  expanded: string | null;
+  onToggle: (id: string) => void;
+  onUse: (skill: Skill) => void;
+  onDelete: (id: string, name: string) => void;
+}
+
+function SkillCard({ skill, isCustom, expanded, onToggle, onUse, onDelete }: SkillCardProps) {
+  const isExp = expanded === skill.id;
+  return (
+    <div className={`rounded-2xl border p-4 transition-colors ${isCustom ? 'border-gold/30 bg-gold/5' : 'border-[#2C2A35]'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold">{skill.name}</p>
+            {isCustom && (
+              <span className="text-[9px] font-bold text-gold bg-gold/20 px-1.5 py-0.5 rounded-full">MY SKILL</span>
+            )}
+            <span className="text-[10px] text-[#9C9690] border border-[#2C2A35] rounded px-1.5 py-0.5">
+              {CATEGORY_LABEL[skill.category] ?? skill.category}
+            </span>
+          </div>
+          <p className="text-xs text-[#9C9690] mt-1">{skill.description}</p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button onClick={() => onUse(skill)}
+            className="text-xs font-semibold text-gold border border-gold/40 rounded-xl px-3 py-1.5 hover:bg-gold/10 transition-colors">
+            ใช้ Skill →
+          </button>
+          {isCustom && (
+            <button onClick={() => onDelete(skill.id, skill.name)}
+              className="text-xs text-[#9C9690] hover:text-red-400 border border-[#2C2A35] hover:border-red-500/60 rounded-xl px-2 py-1.5 transition-colors"
+              title="ลบ Skill นี้">
+              🗑️
+            </button>
+          )}
+        </div>
+      </div>
+
+      <button onClick={() => onToggle(skill.id)}
+        className="mt-2 text-[10px] text-[#9C9690] hover:text-bone flex items-center gap-1">
+        {isExp ? '▲ ซ่อน Prompt' : '▼ ดู Prompt Template'}
+      </button>
+      {isExp && (
+        <pre className="mt-2 text-[10px] text-[#9C9690] bg-[#15151A] rounded-xl p-3 whitespace-pre-wrap leading-relaxed border border-[#2C2A35]">
+          {skill.promptTemplate}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ──────────────────────────────────────────────────────────────
 export default function SkillsPage() {
   const router = useRouter();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -36,8 +93,6 @@ export default function SkillsPage() {
   const [activeCategory, setActiveCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-
-  // Create form
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -53,7 +108,7 @@ export default function SkillsPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [activeCategory]);
+  useEffect(() => { load(); }, [activeCategory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -85,55 +140,12 @@ export default function SkillsPage() {
     }
   }
 
-  function useSkill(skill: Skill) {
+  function handleUse(skill: Skill) {
     router.push(`/seo?skillId=${skill.id}`);
   }
 
-  function SkillCard({ skill, isCustom }: { skill: Skill; isCustom?: boolean }) {
-    const isExp = expanded === skill.id;
-    return (
-      <div className={`rounded-2xl border p-4 transition-colors ${isCustom ? 'border-gold/30 bg-gold/5' : 'border-[#2C2A35]'}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-semibold">{skill.name}</p>
-              {isCustom && (
-                <span className="text-[9px] font-bold text-gold bg-gold/20 px-1.5 py-0.5 rounded-full">MY SKILL</span>
-              )}
-              <span className="text-[10px] text-[#9C9690] border border-[#2C2A35] rounded px-1.5 py-0.5">
-                {CATEGORY_LABEL[skill.category] ?? skill.category}
-              </span>
-            </div>
-            <p className="text-xs text-[#9C9690] mt-1">{skill.description}</p>
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button onClick={() => useSkill(skill)}
-              className="text-xs font-semibold text-gold border border-gold/40 rounded-xl px-3 py-1.5 hover:bg-gold/10 transition-colors">
-              ใช้ Skill →
-            </button>
-            {isCustom && (
-              <button onClick={() => handleDelete(skill.id, skill.name)}
-                className="text-xs text-[#9C9690] hover:text-red-400 border border-[#2C2A35] hover:border-red-500/60 rounded-xl px-2 py-1.5 transition-colors"
-                title="ลบ Skill นี้">
-                🗑️
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Expand prompt */}
-        <button
-          onClick={() => setExpanded(isExp ? null : skill.id)}
-          className="mt-2 text-[10px] text-[#9C9690] hover:text-bone flex items-center gap-1">
-          {isExp ? '▲ ซ่อน Prompt' : '▼ ดู Prompt Template'}
-        </button>
-        {isExp && (
-          <pre className="mt-2 text-[10px] text-[#9C9690] bg-[#15151A] rounded-xl p-3 whitespace-pre-wrap leading-relaxed border border-[#2C2A35]">
-            {skill.promptTemplate}
-          </pre>
-        )}
-      </div>
-    );
+  function handleToggle(id: string) {
+    setExpanded((prev) => (prev === id ? null : id));
   }
 
   return (
@@ -144,8 +156,7 @@ export default function SkillsPage() {
           <h1 className="font-serif text-2xl">Skill Library</h1>
           <p className="text-sm text-[#9C9690] mt-1">Prompt template สำเร็จรูป ใช้กับทุกโมดูล</p>
         </div>
-        <button
-          onClick={() => { setShowForm(!showForm); setFormError(null); }}
+        <button onClick={() => { setShowForm(!showForm); setFormError(null); }}
           className={`text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
             showForm ? 'border-gold bg-gold/10 text-gold' : 'border-[#2C2A35] text-[#9C9690] hover:border-gold hover:text-gold'
           }`}>
@@ -157,7 +168,6 @@ export default function SkillsPage() {
       {showForm && (
         <form onSubmit={handleCreate} className="rounded-2xl border border-gold/30 bg-gold/5 p-5 mb-6 space-y-3">
           <h2 className="font-serif text-lg text-gold">✨ สร้าง Skill ใหม่</h2>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-[#9C9690] mb-1.5">ชื่อ Skill *</label>
@@ -177,27 +187,23 @@ export default function SkillsPage() {
               </select>
             </div>
           </div>
-
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">คำอธิบาย *</label>
             <input required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="เช่น เขียนรีวิวสินค้าแบบ honest เน้นข้อดีข้อเสีย"
               className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
           </div>
-
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">
               Prompt Template * <span className="text-[10px] opacity-60">— System prompt ที่จะส่งให้ AI</span>
             </label>
             <textarea required value={form.promptTemplate}
               onChange={(e) => setForm({ ...form, promptTemplate: e.target.value })}
-              placeholder={`เช่น คุณเป็นผู้เชี่ยวชาญรีวิวสินค้า เขียนรีวิวแบบ honest ครอบคลุมข้อดี ข้อเสีย ราคา กลุ่มเป้าหมาย ความยาว 300-500 คำ ใช้ภาษาไทยที่เป็นธรรมชาติ`}
+              placeholder="เช่น คุณเป็นผู้เชี่ยวชาญรีวิวสินค้า เขียนรีวิวแบบ honest ครอบคลุมข้อดี ข้อเสีย ราคา ความยาว 300-500 คำ"
               className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[120px] resize-none" />
             <p className="text-[10px] text-[#9C9690] mt-1">{form.promptTemplate.length}/2000 ตัวอักษร</p>
           </div>
-
           {formError && <p className="text-sm text-[#C9716A]">{formError}</p>}
-
           <button type="submit" disabled={saving}
             className="rounded-xl bg-gold text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50">
             {saving ? 'กำลังบันทึก...' : '✓ บันทึก Skill'}
@@ -226,7 +232,11 @@ export default function SkillsPage() {
             My Skills ({customSkills.length})
           </h2>
           <div className="space-y-3">
-            {customSkills.map((s) => <SkillCard key={s.id} skill={s} isCustom />)}
+            {customSkills.map((s) => (
+              <SkillCard key={s.id} skill={s} isCustom
+                expanded={expanded} onToggle={handleToggle}
+                onUse={handleUse} onDelete={handleDelete} />
+            ))}
           </div>
         </div>
       )}
@@ -238,7 +248,11 @@ export default function SkillsPage() {
             Official Skills ({officialSkills.length})
           </h2>
           <div className="space-y-3">
-            {officialSkills.map((s) => <SkillCard key={s.id} skill={s} />)}
+            {officialSkills.map((s) => (
+              <SkillCard key={s.id} skill={s}
+                expanded={expanded} onToggle={handleToggle}
+                onUse={handleUse} onDelete={handleDelete} />
+            ))}
           </div>
         </div>
       )}

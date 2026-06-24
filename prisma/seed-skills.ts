@@ -39,11 +39,20 @@ const officialSkills = [
 async function main() {
   console.log('Seeding Official Skill Library...');
   for (const skill of officialSkills) {
-    await prisma.skill.upsert({
-      where: { name_category_team: { name: skill.name, category: skill.category, teamId: null } },
-      update: { description: skill.description, promptTemplate: skill.promptTemplate },
-      create: skill
+    // ใช้ findFirst แทน upsert เพราะ Prisma ไม่รองรับ null ใน composite unique where
+    const existing = await prisma.skill.findFirst({
+      where: { name: skill.name, category: skill.category, teamId: null }
     });
+    if (existing) {
+      await prisma.skill.update({
+        where: { id: existing.id },
+        data: { description: skill.description, promptTemplate: skill.promptTemplate }
+      });
+    } else {
+      await prisma.skill.create({
+        data: { ...skill, teamId: undefined, isOfficial: true }
+      });
+    }
     console.log(`✓ [${skill.category}] ${skill.name}`);
   }
   console.log(`\nเสร็จแล้ว: ${officialSkills.length} official skills`);
