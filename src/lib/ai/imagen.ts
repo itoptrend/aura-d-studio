@@ -19,12 +19,12 @@ export interface ImageResult {
   promptUsed: string;
 }
 
-// Map our aspect ratio codes to provider-specific values
-const GEMINI_ASPECT: Record<string, string> = {
-  '1:1':  '1:1',
-  '16:9': '16:9',
-  '9:16': '9:16',
-  '4:3':  '4:3',
+// Map aspect ratio to prompt instruction (Gemini doesn't support imageGenerationConfig)
+const GEMINI_ASPECT_PROMPT: Record<string, string> = {
+  '1:1':  'square format, 1:1 aspect ratio',
+  '16:9': 'landscape format, 16:9 widescreen aspect ratio, wide horizontal composition',
+  '9:16': 'portrait format, 9:16 vertical aspect ratio, tall vertical composition',
+  '4:3':  'standard 4:3 aspect ratio',
 };
 
 const GROK_SIZE: Record<string, string> = {
@@ -40,15 +40,18 @@ export async function generateImageGemini(params: {
   model: string;
   prompt: string;
   negativePrompt?: string;
-  aspectRatio?: string;   // '1:1' | '16:9' | '9:16' | '4:3'
+  aspectRatio?: string;
 }): Promise<ImageResult> {
+  // Gemini doesn't support imageGenerationConfig — inject aspect ratio into prompt
+  const aspectInstruction = params.aspectRatio && GEMINI_ASPECT_PROMPT[params.aspectRatio]
+    ? `, ${GEMINI_ASPECT_PROMPT[params.aspectRatio]}`
+    : '';
+  const finalPrompt = `${params.prompt}${aspectInstruction}`;
+
   const body: Record<string, unknown> = {
-    contents: [{ parts: [{ text: params.prompt }] }],
+    contents: [{ parts: [{ text: finalPrompt }] }],
     generationConfig: {
-      responseModalities: ['IMAGE'],
-      ...(params.aspectRatio && GEMINI_ASPECT[params.aspectRatio]
-        ? { imageGenerationConfig: { aspectRatio: GEMINI_ASPECT[params.aspectRatio] } }
-        : {})
+      responseModalities: ['IMAGE']
     }
   };
 
