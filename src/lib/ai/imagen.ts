@@ -25,55 +25,17 @@ const GROK_SIZE: Record<string, string> = {
   '4:3':  '1024x768',
 };
 
-// ─── GOOGLE IMAGEN 3 (/predict endpoint — supports aspectRatio natively) ────
-async function generateImageImagen3(params: {
-  apiKey: string;
-  model: string;
-  prompt: string;
-  aspectRatio: string;
-}): Promise<ImageResult> {
-  const res = await fetch(
-    `${GEMINI_API_BASE}/${params.model}:predict?key=${params.apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        instances: [{ prompt: params.prompt }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: params.aspectRatio   // '1:1' | '16:9' | '9:16' | '4:3' | '3:4'
-        }
-      })
-    }
-  );
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Imagen 3 API error (${res.status}): ${err}`);
-  }
-
-  const data = await res.json();
-  const prediction = data.predictions?.[0];
-  if (!prediction?.bytesBase64Encoded) {
-    throw new Error('Imagen 3 ไม่ได้ส่งรูปภาพกลับมา — ลองใหม่อีกครั้ง');
-  }
-
-  const mimeType = prediction.mimeType ?? 'image/png';
-  return {
-    dataUrl: `data:${mimeType};base64,${prediction.bytesBase64Encoded}`,
-    mimeType,
-    provider: 'google',
-    model: params.model,
-    promptUsed: params.prompt
-  };
-}
-
-// ─── GOOGLE GEMINI FLASH IMAGE (generateContent — 1:1 only) ─────────────────
+// ─── GOOGLE GEMINI (Nano Banana - gemini-2.5-flash-image) ────────────────────
+// Correct aspectRatio field: generationConfig.imageConfig.aspectRatio
+// Supported: "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "4:5" | "5:4" | "2:3" | "3:2" | "21:9"
 async function generateImageGeminiFlash(params: {
   apiKey: string;
   model: string;
   prompt: string;
+  aspectRatio?: string;
 }): Promise<ImageResult> {
+  const ar = params.aspectRatio ?? '1:1';
+
   const res = await fetch(
     `${GEMINI_API_BASE}/${params.model}:generateContent?key=${params.apiKey}`,
     {
@@ -81,7 +43,10 @@ async function generateImageGeminiFlash(params: {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: params.prompt }] }],
-        generationConfig: { responseModalities: ['IMAGE'] }
+        generationConfig: {
+          responseModalities: ['IMAGE'],
+          imageConfig: { aspectRatio: ar }   // ✅ correct field (not imageGenerationConfig)
+        }
       })
     }
   );
@@ -97,7 +62,7 @@ async function generateImageGeminiFlash(params: {
     (p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData?.data
   );
   if (!imagePart?.inlineData) {
-    throw new Error('Gemini ไม่ได้ส่งรูปภาพกลับมา — ลองใช้ Imagen 3 แทน');
+    throw new Error('Gemini ไม่ได้ส่งรูปภาพกลับมา — ลองใช้ prompt อื่น');
   }
 
   const { mimeType, data: base64Data } = imagePart.inlineData;
@@ -110,7 +75,7 @@ async function generateImageGeminiFlash(params: {
   };
 }
 
-// ─── GOOGLE — auto-route by model ────────────────────────────────────────────
+// ─── GOOGLE — gateway ─────────────────────────────────────────────────────────
 export async function generateImageGemini(params: {
   apiKey: string;
   model: string;
@@ -118,20 +83,6 @@ export async function generateImageGemini(params: {
   negativePrompt?: string;
   aspectRatio?: string;
 }): Promise<ImageResult> {
-  const ar = params.aspectRatio ?? '1:1';
-
-  // Imagen 3 models use /predict and support aspectRatio natively
-  if (params.model.startsWith('imagen')) {
-    return generateImageImagen3({ ...params, aspectRatio: ar });
-  }
-
-  // Gemini Flash image model — 1:1 only, warn user
-  if (ar !== '1:1') {
-    throw new Error(
-      `โมเดล ${params.model} รองรับแค่ 1:1 เท่านั้น\n` +
-      `ถ้าต้องการ ${ar} กรุณาเลือกโมเดล "Imagen 3 — สร้างภาพ HD"`
-    );
-  }
   return generateImageGeminiFlash(params);
 }
 

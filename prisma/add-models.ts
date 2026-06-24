@@ -31,9 +31,8 @@ const models = [
   { providerCode: 'google', modelCode: 'gemini-2.5-flash',              displayName: 'Gemini 2.5 Flash',                capability: 'text'  },
   { providerCode: 'google', modelCode: 'gemini-2.5-pro',                displayName: 'Gemini 2.5 Pro',                  capability: 'text'  },
   { providerCode: 'google', modelCode: 'gemini-2.5-flash-lite',         displayName: 'Gemini 2.5 Flash-Lite (ประหยัด)', capability: 'text'  },
-  // Google — image (เพิ่ม Imagen 3 ที่รองรับ aspect ratio จริง)
-  { providerCode: 'google', modelCode: 'imagen-3.0-generate-002',        displayName: 'Imagen 3 — สร้างภาพ HD (รองรับทุก aspect ratio)', capability: 'image' },
-  { providerCode: 'google', modelCode: 'gemini-2.5-flash-image',          displayName: 'Nano Banana — สร้างภาพ (1:1 เท่านั้น)',             capability: 'image' },
+  // Google — image (gemini-2.5-flash-image = Nano Banana GA, รองรับ 10 aspect ratios)
+  { providerCode: 'google', modelCode: 'gemini-2.5-flash-image', displayName: 'Nano Banana — สร้างภาพ (รองรับทุก ratio)', capability: 'image' },
   // Google — video
   { providerCode: 'google', modelCode: 'veo-3.1-generate-preview',      displayName: 'Veo 3.1 — สร้างวิดีโอ',           capability: 'video' },
   { providerCode: 'google', modelCode: 'veo-3.1-fast-generate-preview', displayName: 'Veo 3.1 Fast — วิดีโอเร็ว',       capability: 'video' },
