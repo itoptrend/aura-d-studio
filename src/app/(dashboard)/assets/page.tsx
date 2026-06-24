@@ -19,6 +19,8 @@ export default function AssetsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false); // inline confirm state
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch('/api/assets');
@@ -59,32 +61,43 @@ export default function AssetsPage() {
     });
   }
 
-  function enterSelectMode() { setSelectMode(true); setSelected(new Set()); }
-  function exitSelectMode()  { setSelectMode(false); setSelected(new Set()); }
+  function enterSelectMode() { setSelectMode(true); setSelected(new Set()); setDeleteError(null); }
+  function exitSelectMode()  { setSelectMode(false); setSelected(new Set()); setConfirmDelete(false); setDeleteError(null); }
 
   function toggleSelectAll() {
-    setSelected(selected.size === assets.length
-      ? new Set()
-      : new Set(assets.map((a) => a.id))
-    );
+    setSelected(selected.size === assets.length ? new Set() : new Set(assets.map((a) => a.id)));
   }
 
-  async function handleBulkDelete() {
+  // Step 1: show inline confirm bar
+  function requestDelete() {
     if (selected.size === 0) return;
-    if (!confirm(`ลบ ${selected.size} รายการที่เลือก?\nไม่สามารถกู้คืนได้`)) return;
+    setConfirmDelete(true);
+    setDeleteError(null);
+  }
+
+  // Step 2: actually delete
+  async function doDelete() {
     setDeleting(true);
-    const res = await fetch('/api/assets/bulk-delete', {
-      method: 'DELETE',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ids: Array.from(selected) })
-    });
-    const data = await res.json();
-    setDeleting(false);
-    if (res.ok) {
+    setDeleteError(null);
+    try {
+      const res = await fetch('/api/assets/bulk-delete', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selected) })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(data.error ?? 'ลบไม่สำเร็จ กรุณาลองใหม่');
+        setDeleting(false);
+        setConfirmDelete(false);
+        return;
+      }
       exitSelectMode();
       await load();
-    } else {
-      alert(data.error ?? 'ลบไม่สำเร็จ');
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+      setDeleting(false);
+      setConfirmDelete(false);
     }
   }
 
@@ -107,7 +120,6 @@ export default function AssetsPage() {
             )}
           </p>
         </div>
-
         {assets.length > 0 && !selectMode && (
           <button onClick={enterSelectMode}
             className="text-xs px-3 py-1.5 rounded-xl border border-[#2C2A35] text-[#9C9690] hover:border-red-500/60 hover:text-red-400 flex-shrink-0 mt-1 transition-colors">
@@ -116,16 +128,13 @@ export default function AssetsPage() {
         )}
       </div>
 
-      {/* Bulk action bar — shows when in select mode */}
-      {selectMode && (
+      {/* Toolbar — select mode */}
+      {selectMode && !confirmDelete && (
         <div className="flex items-center justify-between rounded-2xl bg-[#1C1B23] border border-[#2C2A35] px-4 py-3 mb-4 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Select all checkbox */}
+          <div className="flex items-center gap-3">
             <button onClick={toggleSelectAll}
               className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                selected.size === assets.length && assets.length > 0
-                  ? 'bg-gold border-gold'
-                  : 'border-[#9C9690] hover:border-gold'
+                selected.size === assets.length && assets.length > 0 ? 'bg-gold border-gold' : 'border-[#9C9690] hover:border-gold'
               }`}>
               {selected.size === assets.length && assets.length > 0 && (
                 <span className="text-black text-[10px] font-bold">✓</span>
@@ -135,16 +144,35 @@ export default function AssetsPage() {
               {selected.size === assets.length && assets.length > 0 ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
             </span>
           </div>
-
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2">
             <button onClick={exitSelectMode}
               className="text-xs text-[#9C9690] px-3 py-1.5 rounded-xl border border-[#2C2A35] hover:border-[#9C9690]">
               ยกเลิก
             </button>
-            <button onClick={handleBulkDelete}
-              disabled={selected.size === 0 || deleting}
+            <button onClick={requestDelete} disabled={selected.size === 0}
               className="text-xs font-semibold text-white bg-red-600/80 hover:bg-red-600 rounded-xl px-4 py-1.5 disabled:opacity-40 transition-colors">
-              {deleting ? 'กำลังลบ...' : `🗑️ ลบ ${selected.size > 0 ? `${selected.size} รายการ` : ''}`}
+              🗑️ ลบ {selected.size > 0 ? `${selected.size} รายการ` : ''}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Inline confirm dialog */}
+      {confirmDelete && (
+        <div className="rounded-2xl bg-red-950/40 border border-red-700/50 px-4 py-4 mb-4">
+          <p className="text-sm font-semibold text-red-300 mb-1">
+            ⚠️ ยืนยันการลบ {selected.size} รายการ?
+          </p>
+          <p className="text-xs text-[#9C9690] mb-3">ไม่สามารถกู้คืนได้หลังจากลบแล้ว</p>
+          {deleteError && <p className="text-xs text-red-400 mb-3">{deleteError}</p>}
+          <div className="flex gap-2">
+            <button onClick={doDelete} disabled={deleting}
+              className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl px-5 py-2 disabled:opacity-50 transition-colors">
+              {deleting ? '⏳ กำลังลบ...' : `ยืนยัน — ลบ ${selected.size} รายการ`}
+            </button>
+            <button onClick={() => setConfirmDelete(false)} disabled={deleting}
+              className="text-xs text-[#9C9690] px-4 py-2 rounded-xl border border-[#2C2A35] hover:border-[#9C9690] disabled:opacity-50">
+              ยกเลิก
             </button>
           </div>
         </div>
@@ -167,7 +195,7 @@ export default function AssetsPage() {
                 : 'border-[#2C2A35]'
             }`}>
 
-            {/* Checkbox — only in select mode */}
+            {/* Checkbox */}
             {selectMode && (
               <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
                 selected.has(a.id) ? 'bg-gold border-gold' : 'border-[#9C9690]'
@@ -183,7 +211,6 @@ export default function AssetsPage() {
                 <img src={a.contentText} alt={a.title} className="w-full h-full object-cover" />
               </div>
             )}
-            {/* Audio icon */}
             {a.type === 'audio' && (
               <div className="w-10 h-10 rounded-xl bg-[#1C1B23] flex items-center justify-center flex-shrink-0 text-xl">🔊</div>
             )}
@@ -207,15 +234,15 @@ export default function AssetsPage() {
               </Link>
             )}
 
-            {/* Actions — hidden in select mode */}
+            {/* Actions */}
             {!selectMode && (
               <div className="flex items-center gap-1 flex-shrink-0">
                 {a.contentText && (
-                  <button onClick={() => downloadAsset(a.title, a.contentText!, a.type)}
+                  <button onClick={(e) => { e.stopPropagation(); downloadAsset(a.title, a.contentText!, a.type); }}
                     className="text-xs text-[#9C9690] hover:text-bone px-2 py-1 rounded-lg border border-[#2C2A35] hover:border-[#9C9690]"
                     title="ดาวน์โหลด">↓</button>
                 )}
-                <button onClick={() => toggleFavorite(a.id, a.isFavorited)}
+                <button onClick={(e) => { e.stopPropagation(); toggleFavorite(a.id, a.isFavorited); }}
                   className={`text-lg px-2 ${a.isFavorited ? 'text-red-400' : 'text-[#9C9690]'}`}>
                   {a.isFavorited ? '♥' : '♡'}
                 </button>
