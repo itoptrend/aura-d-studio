@@ -9,6 +9,7 @@ const runSchema = z.object({
   prompt:         z.string().min(3, 'กรอก prompt อย่างน้อย 3 ตัวอักษร'),
   negativePrompt: z.string().optional().default(''),
   style:          z.string().optional().default(''),
+  aspectRatio:    z.string().optional().default('1:1'),
   credentialId:   z.string().uuid(),
   modelCode:      z.string().min(1)
 });
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'ข้อมูลไม่ถูกต้อง' }, { status: 400 });
   }
-  const { prompt, negativePrompt, style, credentialId, modelCode } = parsed.data;
+  const { prompt, negativePrompt, style, aspectRatio, credentialId, modelCode } = parsed.data;
 
   // Load credential + model
   const credential = await prisma.credential.findFirst({
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
       status: 'running',
       credentialId: credential.id,
       resolvedModelId: model.id,
-      inputJson: { prompt, negativePrompt, style, finalPrompt },
+      inputJson: { prompt, negativePrompt, style, aspectRatio, finalPrompt },
       startedAt: new Date()
     }
   });
@@ -64,7 +65,8 @@ export async function POST(req: Request) {
       apiKey,
       model: modelCode,
       prompt: finalPrompt,
-      negativePrompt
+      negativePrompt,
+      aspectRatio
     });
 
     // Store image as base64 data URL in contentText (Phase 2 approach)

@@ -35,9 +35,9 @@ export default function ImageGenerationPage() {
   const [result, setResult] = useState<{ dataUrl: string; assetId: string; mimeType: string } | null>(null);
 
   const { values: form, setField, clearForm, savedAt } = useFormPersist('image', {
-    prompt: '', negativePrompt: '', style: '', credentialId: '', modelCode: ''
+    prompt: '', negativePrompt: '', style: '', aspectRatio: '1:1', credentialId: '', modelCode: ''
   });
-  const { prompt, negativePrompt, style, credentialId, modelCode } = form;
+  const { prompt, negativePrompt, style, aspectRatio, credentialId, modelCode } = form;
 
   useEffect(() => {
     Promise.all([
@@ -62,7 +62,7 @@ export default function ImageGenerationPage() {
     const res = await fetch('/api/workflows/generate-image/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ prompt, negativePrompt, style, credentialId, modelCode })
+      body: JSON.stringify({ prompt, negativePrompt, style, aspectRatio, credentialId, modelCode })
     });
     const data = await res.json();
     setLoading(false);
@@ -148,19 +148,26 @@ export default function ImageGenerationPage() {
             className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
         </div>
 
-        {/* Style */}
-        <div>
-          <label className="block text-xs text-[#9C9690] mb-2">สไตล์ภาพ</label>
-          <div className="flex flex-wrap gap-2">
-            {STYLES.map((s) => (
-              <button key={s.code} type="button"
-                onClick={() => setField('style', s.code)}
-                className={`text-xs px-3 py-1.5 rounded-xl border transition-colors ${
-                  style === s.code ? 'border-gold bg-gold/10 text-gold font-semibold' : 'border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690]'
-                }`}>
-                {s.label}
-              </button>
-            ))}
+        {/* Aspect Ratio + Style row */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1.5">อัตราส่วนภาพ</label>
+            <select value={aspectRatio} onChange={(e) => setField('aspectRatio', e.target.value)}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm">
+              <option value="1:1">⬛ 1:1 — Square (โซเชียล ทั่วไป)</option>
+              <option value="16:9">▬ 16:9 — Landscape (YouTube, Banner)</option>
+              <option value="9:16">▮ 9:16 — Portrait (TikTok, Reels, Stories)</option>
+              <option value="4:3">▭ 4:3 — Standard (Presentation)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1.5">สไตล์ภาพ</label>
+            <select value={style} onChange={(e) => setField('style', e.target.value)}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm">
+              {STYLES.map((s) => (
+                <option key={s.code} value={s.code}>{s.label}</option>
+              ))}
+            </select>
           </div>
         </div>
 

@@ -12,24 +12,43 @@ const GEMINI_IMAGE_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/
 const GROK_API_BASE = 'https://api.x.ai/v1';
 
 export interface ImageResult {
-  dataUrl: string;   // data:image/png;base64,...
+  dataUrl: string;
   mimeType: string;
   provider: string;
   model: string;
   promptUsed: string;
 }
 
+// Map our aspect ratio codes to provider-specific values
+const GEMINI_ASPECT: Record<string, string> = {
+  '1:1':  '1:1',
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3':  '4:3',
+};
+
+const GROK_SIZE: Record<string, string> = {
+  '1:1':  '1024x1024',
+  '16:9': '1344x768',
+  '9:16': '768x1344',
+  '4:3':  '1024x768',
+};
+
 // ─── GOOGLE GEMINI (Nano Banana) ────────────────────────────────────────────
 export async function generateImageGemini(params: {
   apiKey: string;
-  model: string;           // 'gemini-2.0-flash-preview-image-generation'
+  model: string;
   prompt: string;
   negativePrompt?: string;
+  aspectRatio?: string;   // '1:1' | '16:9' | '9:16' | '4:3'
 }): Promise<ImageResult> {
   const body: Record<string, unknown> = {
     contents: [{ parts: [{ text: params.prompt }] }],
     generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE']
+      responseModalities: ['IMAGE'],
+      ...(params.aspectRatio && GEMINI_ASPECT[params.aspectRatio]
+        ? { imageGenerationConfig: { aspectRatio: GEMINI_ASPECT[params.aspectRatio] } }
+        : {})
     }
   };
 
@@ -45,8 +64,6 @@ export async function generateImageGemini(params: {
 
   const data = await res.json();
   const parts = data.candidates?.[0]?.content?.parts ?? [];
-
-  // Find the image part
   const imagePart = parts.find(
     (p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData?.data
   );
@@ -68,9 +85,12 @@ export async function generateImageGemini(params: {
 // ─── GROK IMAGINE ────────────────────────────────────────────────────────────
 export async function generateImageGrok(params: {
   apiKey: string;
-  model: string;   // 'grok-imagine-image-pro'
+  model: string;
   prompt: string;
+  aspectRatio?: string;
 }): Promise<ImageResult> {
+  const size = (params.aspectRatio && GROK_SIZE[params.aspectRatio]) ? GROK_SIZE[params.aspectRatio] : '1024x1024';
+
   const res = await fetch(`${GROK_API_BASE}/images/generations`, {
     method: 'POST',
     headers: {
@@ -81,6 +101,7 @@ export async function generateImageGrok(params: {
       model: params.model,
       prompt: params.prompt,
       n: 1,
+      size,
       response_format: 'b64_json'
     })
   });
@@ -94,7 +115,6 @@ export async function generateImageGrok(params: {
 
   const data = await res.json();
   const b64 = data.data?.[0]?.b64_json;
-
   if (!b64) throw new Error('Grok Imagine ไม่ได้ส่งรูปภาพกลับมา');
 
   return {
@@ -112,6 +132,7 @@ export async function generateImage(providerCode: string, params: {
   model: string;
   prompt: string;
   negativePrompt?: string;
+  aspectRatio?: string;
 }): Promise<ImageResult> {
   switch (providerCode) {
     case 'google': return generateImageGemini(params);
