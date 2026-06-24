@@ -91,15 +91,24 @@ export default function AssetsPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ ids: Array.from(selected) })
       });
+
+      // Safe JSON parse — response อาจไม่ใช่ JSON ถ้า server crash
+      let data: { deleted?: number; error?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        // ถ้าแปลง JSON ไม่ได้ ให้แสดง HTTP status แทน
+        data = { error: `Server error (HTTP ${res.status})` };
+      }
+
       if (res.ok) {
         exitSelectMode();
         await load();
       } else {
-        const data = await res.json();
-        alert(data.error ?? 'ลบไม่สำเร็จ');
+        alert(data.error ?? `ลบไม่สำเร็จ (${res.status})`);
       }
     } catch (err) {
-      alert('เกิดข้อผิดพลาด: ' + (err instanceof Error ? err.message : 'unknown'));
+      alert('เกิดข้อผิดพลาด: ' + (err instanceof Error ? err.message : 'network error'));
     } finally {
       setDeleting(false);
       setConfirmDelete(false);
