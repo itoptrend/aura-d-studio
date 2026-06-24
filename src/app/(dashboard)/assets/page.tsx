@@ -9,7 +9,9 @@ interface AssetRow {
   title: string;
   isFavorited: boolean;
   createdAt: string;
-  contentText?: string | null;
+  hasContent: boolean;
+  thumbnail: string | null;
+  isAudio: boolean;
   sourceNodeExecution: { costCredit: string } | null;
 }
 
@@ -19,18 +21,25 @@ export default function AssetsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false); // inline confirm state
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function load() {
-    const res = await fetch('/api/assets');
-    const data = await res.json();
-    setAssets(data.assets ?? []);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/assets');
+      const data = await res.json();
+      setAssets(data.assets ?? []);
+    } catch (e) {
+      console.error('load error', e);
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load(); }, []);
 
-  async function toggleFavorite(id: string, current: boolean) {
+  async function toggleFavorite(e: React.MouseEvent, id: string, current: boolean) {
+    e.stopPropagation();
+    e.preventDefault();
     setAssets((prev) => prev.map((a) => (a.id === id ? { ...a, isFavorited: !current } : a)));
     await fetch(`/api/assets/${id}`, {
       method: 'PATCH',
@@ -39,7 +48,14 @@ export default function AssetsPage() {
     });
   }
 
-  function downloadAsset(title: string, content: string, type: string) {
+  async function downloadAsset(e: React.MouseEvent, id: string, title: string, type: string) {
+    e.stopPropagation();
+    e.preventDefault();
+    // ดึงเนื้อหาเต็มจาก asset detail
+    const res = await fetch(`/api/assets/${id}`);
+    const data = await res.json();
+    const content: string = data.asset?.contentText;
+    if (!content) return;
     const a = document.createElement('a');
     a.href = content;
     if (content.startsWith('data:image')) {
@@ -60,42 +76,31 @@ export default function AssetsPage() {
       return next;
     });
   }
-
-  function enterSelectMode() { setSelectMode(true); setSelected(new Set()); setDeleteError(null); }
-  function exitSelectMode()  { setSelectMode(false); setSelected(new Set()); setConfirmDelete(false); setDeleteError(null); }
-
+  function enterSelectMode() { setSelectMode(true); setSelected(new Set()); setConfirmDelete(false); }
+  function exitSelectMode()  { setSelectMode(false); setSelected(new Set()); setConfirmDelete(false); }
   function toggleSelectAll() {
     setSelected(selected.size === assets.length ? new Set() : new Set(assets.map((a) => a.id)));
   }
 
-  // Step 1: show inline confirm bar
-  function requestDelete() {
-    if (selected.size === 0) return;
-    setConfirmDelete(true);
-    setDeleteError(null);
-  }
-
-  // Step 2: actually delete
-  async function doDelete() {
+  async function handleBulkDelete() {
+    if (selected.size === 0 || deleting) return;
     setDeleting(true);
-    setDeleteError(null);
     try {
       const res = await fetch('/api/assets/bulk-delete', {
         method: 'DELETE',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ ids: Array.from(selected) })
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setDeleteError(data.error ?? 'ลบไม่สำเร็จ กรุณาลองใหม่');
-        setDeleting(false);
-        setConfirmDelete(false);
-        return;
+      if (res.ok) {
+        exitSelectMode();
+        await load();
+      } else {
+        const data = await res.json();
+        alert(data.error ?? 'ลบไม่สำเร็จ');
       }
-      exitSelectMode();
-      await load();
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+      alert('เกิดข้อผิดพลาด: ' + (err instanceof Error ? err.message : 'unknown'));
+    } finally {
       setDeleting(false);
       setConfirmDelete(false);
     }
@@ -105,7 +110,7 @@ export default function AssetsPage() {
     document: '📄', image: '🖼️', audio: '🔊', video: '🎬', storyboard: '🎭'
   };
 
-  if (loading) return <p className="text-sm text-[#9C9690]">กำลังโหลด...</p>;
+  if (loading) return <p className="text-sm text-[#9C9690] mt-8">กำลังโหลด...</p>;
 
   return (
     <div>
@@ -123,58 +128,61 @@ export default function AssetsPage() {
         {assets.length > 0 && !selectMode && (
           <button onClick={enterSelectMode}
             className="text-xs px-3 py-1.5 rounded-xl border border-[#2C2A35] text-[#9C9690] hover:border-red-500/60 hover:text-red-400 flex-shrink-0 mt-1 transition-colors">
-            🗑️ เลือกเพื่อลบ
+            ☑ เลือกเพื่อลบ
           </button>
         )}
       </div>
 
-      {/* Toolbar — select mode */}
-      {selectMode && !confirmDelete && (
-        <div className="flex items-center justify-between rounded-2xl bg-[#1C1B23] border border-[#2C2A35] px-4 py-3 mb-4 gap-3">
-          <div className="flex items-center gap-3">
-            <button onClick={toggleSelectAll}
-              className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                selected.size === assets.length && assets.length > 0 ? 'bg-gold border-gold' : 'border-[#9C9690] hover:border-gold'
-              }`}>
-              {selected.size === assets.length && assets.length > 0 && (
-                <span className="text-black text-[10px] font-bold">✓</span>
-              )}
-            </button>
-            <span className="text-xs text-[#9C9690]">
-              {selected.size === assets.length && assets.length > 0 ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
-            </span>
+      {/* Select mode toolbar */}
+      {selectMode && (
+        <div className="rounded-2xl bg-[#1C1B23] border border-[#2C2A35] px-4 py-3 mb-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button onClick={toggleSelectAll}
+                className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                  selected.size === assets.length && assets.length > 0
+                    ? 'bg-gold border-gold' : 'border-[#9C9690] hover:border-gold'
+                }`}>
+                {selected.size === assets.length && assets.length > 0 && (
+                  <span className="text-black text-[10px] font-bold">✓</span>
+                )}
+              </button>
+              <span className="text-xs text-[#9C9690]">
+                {selected.size === assets.length && assets.length > 0 ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={exitSelectMode}
+                className="text-xs text-[#9C9690] px-3 py-1.5 rounded-xl border border-[#2C2A35] hover:border-[#9C9690]">
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={selected.size === 0}
+                className="text-xs font-semibold text-white bg-red-600/70 hover:bg-red-600 rounded-xl px-4 py-1.5 disabled:opacity-40 transition-colors">
+                🗑️ ลบ {selected.size > 0 ? `${selected.size} รายการ` : ''}
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={exitSelectMode}
-              className="text-xs text-[#9C9690] px-3 py-1.5 rounded-xl border border-[#2C2A35] hover:border-[#9C9690]">
-              ยกเลิก
-            </button>
-            <button onClick={requestDelete} disabled={selected.size === 0}
-              className="text-xs font-semibold text-white bg-red-600/80 hover:bg-red-600 rounded-xl px-4 py-1.5 disabled:opacity-40 transition-colors">
-              🗑️ ลบ {selected.size > 0 ? `${selected.size} รายการ` : ''}
-            </button>
-          </div>
-        </div>
-      )}
 
-      {/* Inline confirm dialog */}
-      {confirmDelete && (
-        <div className="rounded-2xl bg-red-950/40 border border-red-700/50 px-4 py-4 mb-4">
-          <p className="text-sm font-semibold text-red-300 mb-1">
-            ⚠️ ยืนยันการลบ {selected.size} รายการ?
-          </p>
-          <p className="text-xs text-[#9C9690] mb-3">ไม่สามารถกู้คืนได้หลังจากลบแล้ว</p>
-          {deleteError && <p className="text-xs text-red-400 mb-3">{deleteError}</p>}
-          <div className="flex gap-2">
-            <button onClick={doDelete} disabled={deleting}
-              className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl px-5 py-2 disabled:opacity-50 transition-colors">
-              {deleting ? '⏳ กำลังลบ...' : `ยืนยัน — ลบ ${selected.size} รายการ`}
-            </button>
-            <button onClick={() => setConfirmDelete(false)} disabled={deleting}
-              className="text-xs text-[#9C9690] px-4 py-2 rounded-xl border border-[#2C2A35] hover:border-[#9C9690] disabled:opacity-50">
-              ยกเลิก
-            </button>
-          </div>
+          {/* Inline confirm — ไม่ใช้ confirm() เพราะ browser อาจ block */}
+          {confirmDelete && (
+            <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3">
+              <p className="text-sm text-red-300 mb-3">
+                ยืนยันลบ <strong>{selected.size} รายการ</strong>? ไม่สามารถกู้คืนได้
+              </p>
+              <div className="flex gap-2">
+                <button onClick={handleBulkDelete} disabled={deleting}
+                  className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg px-4 py-1.5 disabled:opacity-50 transition-colors">
+                  {deleting ? '⏳ กำลังลบ...' : 'ยืนยันลบ'}
+                </button>
+                <button onClick={() => setConfirmDelete(false)}
+                  className="text-xs text-[#9C9690] px-4 py-1.5 rounded-lg border border-[#2C2A35] hover:border-[#9C9690]">
+                  ยกเลิก
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -204,14 +212,14 @@ export default function AssetsPage() {
               </div>
             )}
 
-            {/* Image thumbnail */}
-            {a.type === 'image' && a.contentText?.startsWith('data:image') && (
+            {/* Thumbnail */}
+            {a.thumbnail && (
               <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-[#1C1B23]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={a.contentText} alt={a.title} className="w-full h-full object-cover" />
+                <img src={a.thumbnail} alt={a.title} className="w-full h-full object-cover" />
               </div>
             )}
-            {a.type === 'audio' && (
+            {a.isAudio && !a.thumbnail && (
               <div className="w-10 h-10 rounded-xl bg-[#1C1B23] flex items-center justify-center flex-shrink-0 text-xl">🔊</div>
             )}
 
@@ -237,12 +245,12 @@ export default function AssetsPage() {
             {/* Actions */}
             {!selectMode && (
               <div className="flex items-center gap-1 flex-shrink-0">
-                {a.contentText && (
-                  <button onClick={(e) => { e.stopPropagation(); downloadAsset(a.title, a.contentText!, a.type); }}
+                {a.hasContent && (
+                  <button onClick={(e) => downloadAsset(e, a.id, a.title, a.type)}
                     className="text-xs text-[#9C9690] hover:text-bone px-2 py-1 rounded-lg border border-[#2C2A35] hover:border-[#9C9690]"
                     title="ดาวน์โหลด">↓</button>
                 )}
-                <button onClick={(e) => { e.stopPropagation(); toggleFavorite(a.id, a.isFavorited); }}
+                <button onClick={(e) => toggleFavorite(e, a.id, a.isFavorited)}
                   className={`text-lg px-2 ${a.isFavorited ? 'text-red-400' : 'text-[#9C9690]'}`}>
                   {a.isFavorited ? '♥' : '♡'}
                 </button>

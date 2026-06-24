@@ -12,13 +12,32 @@ export async function GET() {
       id: true,
       type: true,
       title: true,
-      contentText: true,
       isFavorited: true,
       createdAt: true,
+      contentText: true,
       sourceNodeExecution: { select: { costCredit: true } }
     },
     orderBy: { createdAt: 'desc' }
   });
 
-  return NextResponse.json({ assets });
+  // ตัด contentText ให้เหมาะกับ list view
+  // image: เก็บ data URL เต็มเพื่อแสดง thumbnail
+  // audio/document: เก็บแค่ flag ว่ามีข้อมูลหรือไม่
+  const trimmed = assets.map((a: {
+    id: string; type: string; title: string; isFavorited: boolean;
+    createdAt: Date; contentText: string | null;
+    sourceNodeExecution: { costCredit: unknown } | null;
+  }) => ({
+    id: a.id,
+    type: a.type,
+    title: a.title,
+    isFavorited: a.isFavorited,
+    createdAt: a.createdAt,
+    sourceNodeExecution: a.sourceNodeExecution,
+    hasContent: !!a.contentText,
+    thumbnail: a.contentText?.startsWith('data:image') ? a.contentText : null,
+    isAudio: a.contentText?.startsWith('data:audio') ?? false,
+  }));
+
+  return NextResponse.json({ assets: trimmed });
 }
