@@ -40,7 +40,7 @@ async function main() {
   console.log('Seeding Official Skill Library...');
   for (const skill of officialSkills) {
     await prisma.skill.upsert({
-      where: { name_category: { name: skill.name, category: skill.category } },
+      where: { name_category_team: { name: skill.name, category: skill.category, teamId: null } },
       update: { description: skill.description, promptTemplate: skill.promptTemplate },
       create: skill
     });

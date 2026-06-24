@@ -226,7 +226,7 @@ model Skill {
   teamId         String?  @map("team_id") // null = official skill, set = custom team skill
   createdAt      DateTime @default(now()) @map("created_at")
 
-  @@unique([name, category], name: "name_category")
+  @@unique([name, category, teamId], name: "name_category_team")
   @@map("skill")
 }
 
