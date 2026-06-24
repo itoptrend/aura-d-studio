@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useFormPersist } from '@/lib/useFormPersist';
 
 interface Provider {
   code: string;
@@ -26,14 +27,16 @@ export default function SeoArticlePage() {
   const searchParams = useSearchParams();
   const [providers, setProviders] = useState<Provider[]>([]);
   const [credentials, setCredentials] = useState<CredentialOption[]>([]);
-  const [topic, setTopic] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const [credentialId, setCredentialId] = useState('');
-  const [modelCode, setModelCode] = useState('');
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
+
+  // Persist form data across navigation
+  const [form, setField, clearForm] = useFormPersist('seo', {
+    topic: '', keyword: '', credentialId: '', modelCode: ''
+  });
+  const { topic, keyword, credentialId, modelCode } = form;
 
   useEffect(() => {
     async function load() {
@@ -70,13 +73,7 @@ export default function SeoArticlePage() {
     const res = await fetch('/api/workflows/seo-article/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        topic,
-        keyword,
-        credentialId,
-        modelCode,
-        skillId: selectedSkill?.id // pass skill id to backend
-      })
+      body: JSON.stringify({ topic, keyword, credentialId, modelCode, skillId: selectedSkill?.id })
     });
     const data = await res.json();
     setLoading(false);
@@ -85,6 +82,7 @@ export default function SeoArticlePage() {
       setError(data.error ?? 'สร้างบทความไม่สำเร็จ');
       return;
     }
+    clearForm(); // ล้าง form หลังสร้างสำเร็จ
     setResult(data);
   }
 
@@ -122,7 +120,7 @@ export default function SeoArticlePage() {
           <input
             required
             value={topic}
-            onChange={(e) => setTopic(e.target.value)}
+            onChange={(e) => setField('topic', e.target.value)}
             placeholder="เช่น วิธีเลือกเซรั่มบำรุงผิวหน้าสำหรับผิวมัน"
             className="w-full rounded-xl px-3.5 py-2.5 text-sm"
           />
@@ -132,7 +130,7 @@ export default function SeoArticlePage() {
           <input
             required
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={(e) => setField('keyword', e.target.value)}
             placeholder="เช่น เซรั่มผิวมัน"
             className="w-full rounded-xl px-3.5 py-2.5 text-sm"
           />
@@ -142,7 +140,7 @@ export default function SeoArticlePage() {
           <select
             required
             value={credentialId}
-            onChange={(e) => { setCredentialId(e.target.value); setModelCode(''); }}
+            onChange={(e) => { setField('credentialId', e.target.value); setField('modelCode', ''); }}
             className="w-full rounded-xl px-3.5 py-2.5 text-sm"
           >
             <option value="">เลือก AI ที่เชื่อมต่อไว้</option>
@@ -157,7 +155,7 @@ export default function SeoArticlePage() {
             <select
               required
               value={modelCode}
-              onChange={(e) => setModelCode(e.target.value)}
+              onChange={(e) => setField('modelCode', e.target.value)}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm"
             >
               <option value="">เลือกโมเดล</option>

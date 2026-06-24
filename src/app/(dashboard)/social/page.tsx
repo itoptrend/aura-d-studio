@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useFormPersist } from '@/lib/useFormPersist';
 
 interface Credential { id: string; displayName: string; providerCode: string; }
 interface Provider { code: string; models: { modelCode: string; displayName: string }[]; }
@@ -59,21 +60,17 @@ export default function SocialContentPage() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
 
-  const [platform, setPlatform] = useState('facebook');
-  const [contentType, setContentType] = useState('caption');
-  const [topic, setTopic] = useState('');
-  const [product, setProduct] = useState('');
-  const [target, setTarget] = useState('');
-  const [extra, setExtra] = useState('');
-
-  const [credentialId, setCredentialId] = useState('');
-  const [modelCode, setModelCode] = useState('');
-  const [characterId, setCharacterId] = useState('');
-  const [skillId, setSkillId] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
+
+  // Persist form data across navigation
+  const [form, setField, clearForm] = useFormPersist('social', {
+    platform: 'facebook', contentType: 'caption',
+    topic: '', product: '', target: '', extra: '',
+    credentialId: '', modelCode: '', characterId: '', skillId: ''
+  });
+  const { platform, contentType, topic, product, target, extra, credentialId, modelCode, characterId, skillId } = form;
 
   useEffect(() => {
     Promise.all([
@@ -95,8 +92,8 @@ export default function SocialContentPage() {
   const ph = PLACEHOLDERS[platform];
 
   function handlePlatformChange(p: string) {
-    setPlatform(p);
-    setContentType(CONTENT_TYPES[p]?.[0]?.code ?? '');
+    setField('platform', p);
+    setField('contentType', CONTENT_TYPES[p]?.[0]?.code ?? '');
     setResult(null);
   }
 
@@ -133,6 +130,7 @@ export default function SocialContentPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) { setError(data.error ?? 'สร้างคอนเทนต์ไม่สำเร็จ'); return; }
+    clearForm();
     setResult(data);
   }
 
@@ -171,7 +169,7 @@ export default function SocialContentPage() {
         <label className="block text-xs text-[#9C9690] mb-2">ประเภทคอนเทนต์</label>
         <div className="flex gap-2 flex-wrap">
           {CONTENT_TYPES[platform]?.map((ct) => (
-            <button key={ct.code} onClick={() => { setContentType(ct.code); setResult(null); }}
+            <button key={ct.code} onClick={() => { setField('contentType', ct.code); setResult(null); }}
               className={`text-left text-xs px-3 py-2 rounded-xl border transition-colors ${
                 contentType === ct.code ? 'border-gold bg-gold/10 text-gold font-semibold' : 'border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690]'
               }`}>
@@ -196,7 +194,7 @@ export default function SocialContentPage() {
               หัวข้อ
               <span className="ml-1 text-[10px] text-[#9C9690]/60">เช่น {ph.topic}</span>
             </label>
-            <input value={topic} onChange={(e) => setTopic(e.target.value)}
+            <input value={topic} onChange={(e) => setField('topic', e.target.value)}
               placeholder={ph.topic}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
           </div>
@@ -207,7 +205,7 @@ export default function SocialContentPage() {
               ชื่อสินค้า / แบรนด์
               {ph.product && <span className="ml-1 text-[10px] text-[#9C9690]/60">เช่น {ph.product}</span>}
             </label>
-            <input value={product} onChange={(e) => setProduct(e.target.value)}
+            <input value={product} onChange={(e) => setField('product', e.target.value)}
               placeholder={ph.product || 'เช่น AuraGlow, ร้านกาแฟ The Brew'}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
           </div>
@@ -218,7 +216,7 @@ export default function SocialContentPage() {
               กลุ่มเป้าหมาย
               <span className="ml-1 text-[10px] text-[#9C9690]/60">เช่น {ph.target}</span>
             </label>
-            <input value={target} onChange={(e) => setTarget(e.target.value)}
+            <input value={target} onChange={(e) => setField('target', e.target.value)}
               placeholder={ph.target}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
           </div>
@@ -229,7 +227,7 @@ export default function SocialContentPage() {
               รายละเอียดเพิ่มเติม / จุดเด่นสินค้า
               <span className="ml-1 text-[10px] text-[#9C9690]/60">เช่น {ph.extra}</span>
             </label>
-            <textarea value={extra} onChange={(e) => setExtra(e.target.value)}
+            <textarea value={extra} onChange={(e) => setField('extra', e.target.value)}
               placeholder={ph.extra}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[72px] resize-none" />
           </div>
@@ -240,7 +238,7 @@ export default function SocialContentPage() {
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">AI ที่ใช้</label>
             <select required value={credentialId}
-              onChange={(e) => { setCredentialId(e.target.value); setModelCode(''); }}
+              onChange={(e) => { setField('credentialId', e.target.value); setField('modelCode', ''); }}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">เลือก AI</option>
               {credentials.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
@@ -249,7 +247,7 @@ export default function SocialContentPage() {
           {selectedProvider && (
             <div>
               <label className="block text-xs text-[#9C9690] mb-1.5">โมเดล</label>
-              <select required value={modelCode} onChange={(e) => setModelCode(e.target.value)}
+              <select required value={modelCode} onChange={(e) => setField('modelCode', e.target.value)}
                 className="w-full rounded-xl px-3.5 py-2.5 text-sm">
                 <option value="">เลือกโมเดล</option>
                 {selectedProvider.models.map((m) => (
@@ -266,7 +264,7 @@ export default function SocialContentPage() {
             <label className="block text-xs text-[#9C9690] mb-1.5">
               ตัวละคร <span className="text-[10px] text-[#9C9690]/60">(optional)</span>
             </label>
-            <select value={characterId} onChange={(e) => setCharacterId(e.target.value)}
+            <select value={characterId} onChange={(e) => setField('characterId', e.target.value)}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">ไม่ใช้ตัวละคร</option>
               {characters.map((c) => (
@@ -278,7 +276,7 @@ export default function SocialContentPage() {
             <label className="block text-xs text-[#9C9690] mb-1.5">
               Skill <span className="text-[10px] text-[#9C9690]/60">(optional)</span>
             </label>
-            <select value={skillId} onChange={(e) => setSkillId(e.target.value)}
+            <select value={skillId} onChange={(e) => setField('skillId', e.target.value)}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">ใช้ prompt เริ่มต้น</option>
               {skills

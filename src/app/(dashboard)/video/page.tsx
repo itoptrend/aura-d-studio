@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useFormPersist } from '@/lib/useFormPersist';
 
 interface Credential { id: string; displayName: string; providerCode: string; }
 interface Provider { code: string; models: { modelCode: string; displayName: string }[]; }
@@ -35,27 +36,37 @@ export default function VideoAdPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
 
   // Input mode: 'new' = กรอกใหม่, 'asset' = เลือกจากคลังไฟล์
-  const [inputMode, setInputMode] = useState<'new' | 'asset'>('new');
-  const [selectedAssetId, setSelectedAssetId] = useState('');
+  
+  
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
 
-  const [adType, setAdType] = useState('facebook_video');
-  const [platform, setPlatform] = useState('');
-  const [product, setProduct] = useState('');
-  const [brand, setBrand] = useState('');
-  const [target, setTarget] = useState('');
-  const [usp, setUsp] = useState('');
-  const [duration, setDuration] = useState('');
-  const [extra, setExtra] = useState('');
+  
+  
+  
+  
+  
+  
+  
+  
 
-  const [credentialId, setCredentialId] = useState('');
-  const [modelCode, setModelCode] = useState('');
-  const [characterId, setCharacterId] = useState('');
-  const [skillId, setSkillId] = useState('');
+  
+  
+  
+  
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
+
+  // Persist form data across navigation
+  const [form, setField, clearForm] = useFormPersist('video', {
+    adType: 'facebook_video', platform: '', inputMode: 'new',
+    product: '', brand: '', target: '', usp: '', duration: '', extra: '',
+    credentialId: '', modelCode: '', characterId: '', skillId: '',
+    selectedAssetId: ''
+  });
+  const { adType, platform, inputMode, product, brand, target, usp, duration, extra,
+    credentialId, modelCode, characterId, skillId, selectedAssetId } = form;
 
   useEffect(() => {
     Promise.all([
@@ -75,7 +86,7 @@ export default function VideoAdPage() {
 
   // When asset is selected, fetch its full content
   async function handleAssetSelect(id: string) {
-    setSelectedAssetId(id);
+    setField('selectedAssetId', id);
     setSelectedAsset(null);
     if (!id) return;
     const res = await fetch(`/api/assets/${id}`);
@@ -91,8 +102,8 @@ export default function VideoAdPage() {
   const canSubmit = inputMode === 'new' ? hasInputNew : !!hasInputAsset;
 
   function handleAdTypeChange(code: string) {
-    setAdType(code);
-    setDuration('');
+    setField('adType', code);
+    setField('duration', '');
     setResult(null);
   }
 
@@ -183,13 +194,13 @@ export default function VideoAdPage() {
         <div>
           <label className="block text-xs text-[#9C9690] mb-2">แหล่งข้อมูล</label>
           <div className="flex gap-2">
-            <button type="button" onClick={() => { setInputMode('new'); setResult(null); }}
+            <button type="button" onClick={() => { setField('inputMode', 'new'); setResult(null); }}
               className={`flex-1 text-sm py-2.5 rounded-xl border transition-colors font-semibold ${
                 inputMode === 'new' ? 'border-gold bg-gold/10 text-gold' : 'border-[#2C2A35] text-[#9C9690]'
               }`}>
               ✏️ กรอกข้อมูลใหม่
             </button>
-            <button type="button" onClick={() => { setInputMode('asset'); setResult(null); }}
+            <button type="button" onClick={() => { setField('inputMode', 'asset'); setResult(null); }}
               className={`flex-1 text-sm py-2.5 rounded-xl border transition-colors font-semibold ${
                 inputMode === 'asset' ? 'border-gold bg-gold/10 text-gold' : 'border-[#2C2A35] text-[#9C9690]'
               }`}>
@@ -237,7 +248,7 @@ export default function VideoAdPage() {
               <label className="block text-xs text-[#9C9690] mb-1">
                 ข้อมูลเพิ่มเติม <span className="text-[10px] opacity-60">(optional) เช่น แบรนด์ กลุ่มเป้าหมาย โปรโมชัน</span>
               </label>
-              <textarea value={extra} onChange={(e) => setExtra(e.target.value)}
+              <textarea value={extra} onChange={(e) => setField('extra', e.target.value)}
                 placeholder="เช่น แบรนด์: Aura Grow | กลุ่ม: ผู้หญิง 25-35 | โปร: ซื้อ 2 แถม 1"
                 className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[60px] resize-none" />
             </div>
@@ -253,33 +264,33 @@ export default function VideoAdPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-[#9C9690] mb-1">สินค้า <span className="text-[10px] opacity-60">เช่น ครีมกันแดด SPF50</span></label>
-                <input value={product} onChange={(e) => setProduct(e.target.value)}
+                <input value={product} onChange={(e) => setField('product', e.target.value)}
                   placeholder="เช่น ครีมกันแดด SPF50"
                   className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
               </div>
               <div>
                 <label className="block text-xs text-[#9C9690] mb-1">แบรนด์ <span className="text-[10px] opacity-60">เช่น Aura Glow</span></label>
-                <input value={brand} onChange={(e) => setBrand(e.target.value)}
+                <input value={brand} onChange={(e) => setField('brand', e.target.value)}
                   placeholder="เช่น Aura Glow"
                   className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
               </div>
             </div>
             <div>
               <label className="block text-xs text-[#9C9690] mb-1">กลุ่มเป้าหมาย <span className="text-[10px] opacity-60">เช่น ผู้หญิง 25-35 ปี</span></label>
-              <input value={target} onChange={(e) => setTarget(e.target.value)}
+              <input value={target} onChange={(e) => setField('target', e.target.value)}
                 placeholder="เช่น ผู้หญิง 25-35 ปี ชอบดูแลผิว"
                 className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
             </div>
             <div>
               <label className="block text-xs text-[#9C9690] mb-1">จุดขาย / USP <span className="text-[10px] opacity-60">เช่น ซึมเร็ว ไม่เหนียว กันน้ำ 8 ชม.</span></label>
-              <textarea value={usp} onChange={(e) => setUsp(e.target.value)}
+              <textarea value={usp} onChange={(e) => setField('usp', e.target.value)}
                 placeholder="เช่น ซึมเร็ว ไม่เหนียว กันน้ำ 8 ชั่วโมง ทดสอบแพทย์แล้ว"
                 className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[60px] resize-none" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-[#9C9690] mb-1">ความยาววิดีโอ</label>
-                <select value={duration} onChange={(e) => setDuration(e.target.value)}
+                <select value={duration} onChange={(e) => setField('duration', e.target.value)}
                   className="w-full rounded-xl px-3.5 py-2.5 text-sm">
                   <option value="">ไม่ระบุ</option>
                   {(DURATION_OPTIONS[adType] ?? []).map((d) => <option key={d} value={d}>{d}</option>)}
@@ -288,7 +299,7 @@ export default function VideoAdPage() {
               {(adType === 'storyboard' || adType === 'ad_package') && (
                 <div>
                   <label className="block text-xs text-[#9C9690] mb-1">Platform หลัก</label>
-                  <select value={platform} onChange={(e) => setPlatform(e.target.value)}
+                  <select value={platform} onChange={(e) => setField('platform', e.target.value)}
                     className="w-full rounded-xl px-3.5 py-2.5 text-sm">
                     <option value="">ไม่ระบุ</option>
                     {PLATFORM_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
@@ -298,7 +309,7 @@ export default function VideoAdPage() {
             </div>
             <div>
               <label className="block text-xs text-[#9C9690] mb-1">รายละเอียดเพิ่มเติม <span className="text-[10px] opacity-60">เช่น สี mood โปรโมชัน</span></label>
-              <textarea value={extra} onChange={(e) => setExtra(e.target.value)}
+              <textarea value={extra} onChange={(e) => setField('extra', e.target.value)}
                 placeholder="เช่น สีพาสเทล บรรยากาศสดใส โปรซื้อ 2 แถม 1 ราคา 590 บาท"
                 className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[60px] resize-none" />
             </div>
@@ -310,7 +321,7 @@ export default function VideoAdPage() {
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">AI ที่ใช้</label>
             <select required value={credentialId}
-              onChange={(e) => { setCredentialId(e.target.value); setModelCode(''); }}
+              onChange={(e) => { setField('credentialId', e.target.value); setField('modelCode', ''); }}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">เลือก AI</option>
               {credentials.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
@@ -319,7 +330,7 @@ export default function VideoAdPage() {
           {selectedProvider && (
             <div>
               <label className="block text-xs text-[#9C9690] mb-1.5">โมเดล</label>
-              <select required value={modelCode} onChange={(e) => setModelCode(e.target.value)}
+              <select required value={modelCode} onChange={(e) => setField('modelCode', e.target.value)}
                 className="w-full rounded-xl px-3.5 py-2.5 text-sm">
                 <option value="">เลือกโมเดล</option>
                 {selectedProvider.models.map((m) => (
@@ -334,7 +345,7 @@ export default function VideoAdPage() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">ตัวละคร <span className="text-[10px] opacity-60">(optional)</span></label>
-            <select value={characterId} onChange={(e) => setCharacterId(e.target.value)}
+            <select value={characterId} onChange={(e) => setField('characterId', e.target.value)}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">ไม่ใช้ตัวละคร</option>
               {characters.map((c) => <option key={c.id} value={c.id}>{c.avatarEmoji} {c.name}</option>)}
@@ -342,7 +353,7 @@ export default function VideoAdPage() {
           </div>
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">Skill <span className="text-[10px] opacity-60">(optional)</span></label>
-            <select value={skillId} onChange={(e) => setSkillId(e.target.value)}
+            <select value={skillId} onChange={(e) => setField('skillId', e.target.value)}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">ใช้ prompt เริ่มต้น</option>
               {skills.filter((s) => s.category === 'video' || s.category === 'social').map((s) => (
