@@ -121,13 +121,16 @@ export default function AssetDetailPage() {
 
       {asset.contentText && (
         asset.contentText.startsWith('data:image') ? (
-          // Image asset — show inline
           <div className="rounded-2xl overflow-hidden border border-[#2C2A35] bg-[#1C1B23]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={asset.contentText} alt={asset.title} className="w-full object-contain max-h-[600px]" />
           </div>
+        ) : asset.contentText.startsWith('data:audio') ? (
+          <div className="rounded-2xl bg-[#1C1B23] border border-[#2C2A35] p-5">
+            <p className="text-xs text-[#9C9690] mb-3">🔊 เสียงพากย์</p>
+            <audio src={asset.contentText} controls className="w-full" style={{ accentColor: '#E4DECE' }} />
+          </div>
         ) : (
-          // Text asset — show as article
           <article className="whitespace-pre-line text-sm leading-relaxed bg-[#1C1B23] rounded-2xl p-5 border border-[#2C2A35]">
             {asset.contentText}
           </article>

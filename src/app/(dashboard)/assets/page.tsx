@@ -71,11 +71,18 @@ export default function AssetsPage() {
             key={a.id}
             className="flex items-center justify-between rounded-2xl border border-[#2C2A35] px-4 py-3 gap-3"
           >
-            {/* Image thumbnail for image assets */}
+            {/* Image thumbnail */}
             {a.type === 'image' && a.contentText?.startsWith('data:image') && (
               <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-[#1C1B23]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={a.contentText} alt={a.title} className="w-full h-full object-cover" />
+              </div>
+            )}
+
+            {/* Audio type icon */}
+            {a.type === 'audio' && (
+              <div className="w-10 h-10 rounded-xl bg-[#1C1B23] flex items-center justify-center flex-shrink-0 text-xl">
+                🔊
               </div>
             )}
 
