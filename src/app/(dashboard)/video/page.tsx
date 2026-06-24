@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 import { CopyButton } from '@/components/CopyButton';
 
@@ -56,6 +57,7 @@ export default function VideoAdPage() {
   
   
 
+  const { success: toastSuccess, error: toastError } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
@@ -145,6 +147,7 @@ export default function VideoAdPage() {
     setLoading(false);
     if (!res.ok) { setError(data.error ?? 'สร้างไม่สำเร็จ'); return; }
     clearForm();
+    toastSuccess('✓ สร้างสำเร็จ บันทึกในคลังไฟล์แล้ว');
     setResult(data);
   }
 

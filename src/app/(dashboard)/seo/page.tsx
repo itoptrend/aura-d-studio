@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 import { CopyButton } from '@/components/CopyButton';
+import { useToast } from '@/components/Toast';
 
 interface Provider { code: string; displayName: string; models: { modelCode: string; displayName: string; capability: string }[]; }
 interface CredentialOption { id: string; providerCode: string; displayName: string; }
@@ -34,6 +35,7 @@ export default function SeoArticlePage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
 
+  const { success: toastSuccess, error: toastError } = useToast();
   const { values: form, setField, clearForm, saveForm, savedAt } = useFormPersist('seo', {
     topic: '', keyword: '', target: '', extra: '',
     length: 'medium', tone: '',
@@ -76,7 +78,12 @@ export default function SeoArticlePage() {
     const data = await res.json();
     setLoading(false);
 
-    if (!res.ok) { setError(data.error ?? 'สร้างบทความไม่สำเร็จ'); return; }
+    if (!res.ok) {
+      toastError(data.error ?? 'สร้างบทความไม่สำเร็จ');
+      setError(data.error ?? 'สร้างบทความไม่สำเร็จ');
+      return;
+    }
+    toastSuccess('✓ สร้างบทความสำเร็จ บันทึกในคลังไฟล์แล้ว');
     setResult(data);
   }
 

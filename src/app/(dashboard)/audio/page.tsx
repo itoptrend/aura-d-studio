@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 import {
   OPENAI_VOICES, GEMINI_TTS_VOICES, ELEVENLABS_VOICES
@@ -35,6 +36,7 @@ function voicesForProvider(providerCode: string) {
 export default function AudioPage() {
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const { success: toastSuccess, error: toastError } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
@@ -98,6 +100,7 @@ export default function AudioPage() {
       return;
     }
     clearForm();
+    toastSuccess('✓ สร้างเสียงสำเร็จ บันทึกในคลังไฟล์แล้ว');
     setResult(data);
   }
 

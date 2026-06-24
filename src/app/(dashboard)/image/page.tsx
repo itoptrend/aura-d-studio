@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 
 interface Credential { id: string; displayName: string; providerCode: string; }
@@ -27,6 +28,7 @@ const PROMPT_EXAMPLES = [
 export default function ImageGenerationPage() {
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const { success: toastSuccess, error: toastError } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ dataUrl: string; assetId: string; mimeType: string } | null>(null);
@@ -77,6 +79,7 @@ export default function ImageGenerationPage() {
       return;
     }
     clearForm();
+    toastSuccess('✓ สร้างภาพสำเร็จ บันทึกในคลังไฟล์แล้ว');
     setResult(data);
   }
 

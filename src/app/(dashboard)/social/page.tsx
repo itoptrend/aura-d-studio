@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 import { CopyButton } from '@/components/CopyButton';
+import { useToast } from '@/components/Toast';
 
 interface Credential { id: string; displayName: string; providerCode: string; }
 interface Provider { code: string; models: { modelCode: string; displayName: string }[]; }
@@ -61,6 +62,7 @@ export default function SocialContentPage() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
 
+  const { success: toastSuccess, error: toastError } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
@@ -130,7 +132,8 @@ export default function SocialContentPage() {
     });
     const data = await res.json();
     setLoading(false);
-    if (!res.ok) { setError(data.error ?? 'สร้างคอนเทนต์ไม่สำเร็จ'); return; }
+    if (!res.ok) { toastError(data.error ?? 'สร้างคอนเทนต์ไม่สำเร็จ'); setError(data.error ?? 'สร้างคอนเทนต์ไม่สำเร็จ'); return; }
+    toastSuccess('✓ สร้างคอนเทนต์สำเร็จ บันทึกในคลังไฟล์แล้ว');
     clearForm();
     setResult(data);
   }
