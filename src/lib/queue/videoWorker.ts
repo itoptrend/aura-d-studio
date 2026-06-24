@@ -3,7 +3,7 @@
 // ถูก import จาก /api/cron/process-video-jobs/route.ts (Vercel Cron ทุก 1 นาที)
 
 import { Worker, Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/db'
 import { decryptSecret } from '@/lib/encryption'
 import { getRedisConnection, VideoJobPayload } from './videoQueue'
 import { startVeoGeneration, pollVeoOperation, uploadVeoVideoToBlob } from '@/lib/ai/veo'

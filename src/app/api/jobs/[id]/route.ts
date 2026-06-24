@@ -3,7 +3,7 @@
 // Next.js 16: async params
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/db'
 import { getCurrentTeamId } from '@/lib/session'
 
 export async function GET(
