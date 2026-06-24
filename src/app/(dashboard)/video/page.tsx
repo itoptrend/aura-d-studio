@@ -7,21 +7,22 @@ interface Credential { id: string; displayName: string; providerCode: string; }
 interface Provider { code: string; models: { modelCode: string; displayName: string }[]; }
 interface Character { id: string; name: string; avatarEmoji: string; }
 interface Skill { id: string; name: string; category: string; }
+interface Asset { id: string; title: string; type: string; contentText?: string | null; createdAt: string; }
 
 const AD_TYPES = [
-  { code: 'facebook_video', label: 'Facebook/IG Video Ad', emoji: '📘', description: 'สคริปต์โฆษณาวิดีโอ + visual direction' },
-  { code: 'tiktok_video',   label: 'TikTok Video Ad',      emoji: '🎵', description: 'สคริปต์แบบ organic ไม่ดูเป็นโฆษณา' },
-  { code: 'youtube_preroll',label: 'YouTube Pre-roll',      emoji: '▶️',  description: 'ดึงดูดใน 5 วินาทีก่อน Skip' },
-  { code: 'storyboard',     label: 'Storyboard',            emoji: '🎬', description: 'Shot by shot พร้อม camera + action' },
-  { code: 'ad_package',     label: 'Complete Ad Package',   emoji: '📦', description: 'Hook 5 แบบ + Script + Storyboard + CTA' },
+  { code: 'facebook_video',  label: 'Facebook/IG Video Ad', emoji: '📘', description: 'สคริปต์โฆษณาวิดีโอ + visual direction' },
+  { code: 'tiktok_video',    label: 'TikTok Video Ad',      emoji: '🎵', description: 'สคริปต์แบบ organic ไม่ดูเป็นโฆษณา' },
+  { code: 'youtube_preroll', label: 'YouTube Pre-roll',      emoji: '▶️',  description: 'ดึงดูดใน 5 วินาทีก่อน Skip' },
+  { code: 'storyboard',      label: 'Storyboard',            emoji: '🎬', description: 'Shot by shot พร้อม camera + action' },
+  { code: 'ad_package',      label: 'Complete Ad Package',   emoji: '📦', description: 'Hook + Script + Storyboard + CTA' },
 ];
 
 const DURATION_OPTIONS: Record<string, string[]> = {
-  facebook_video: ['15 วินาที', '30 วินาที', '60 วินาที'],
-  tiktok_video:   ['15 วินาที', '30 วินาที', '60 วินาที'],
-  youtube_preroll:['6 วินาที (Bumper)', '15 วินาที (Non-skip)', '30 วินาที (Skippable)'],
-  storyboard:     ['15 วินาที', '30 วินาที', '60 วินาที'],
-  ad_package:     ['15 วินาที', '30 วินาที'],
+  facebook_video:  ['15 วินาที', '30 วินาที', '60 วินาที'],
+  tiktok_video:    ['15 วินาที', '30 วินาที', '60 วินาที'],
+  youtube_preroll: ['6 วินาที (Bumper)', '15 วินาที (Non-skip)', '30 วินาที (Skippable)'],
+  storyboard:      ['15 วินาที', '30 วินาที', '60 วินาที'],
+  ad_package:      ['15 วินาที', '30 วินาที'],
 };
 
 const PLATFORM_OPTIONS = ['Facebook', 'Instagram', 'TikTok', 'YouTube', 'LINE'];
@@ -31,6 +32,12 @@ export default function VideoAdPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+
+  // Input mode: 'new' = กรอกใหม่, 'asset' = เลือกจากคลังไฟล์
+  const [inputMode, setInputMode] = useState<'new' | 'asset'>('new');
+  const [selectedAssetId, setSelectedAssetId] = useState('');
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
 
   const [adType, setAdType] = useState('facebook_video');
   const [platform, setPlatform] = useState('');
@@ -56,18 +63,32 @@ export default function VideoAdPage() {
       fetch('/api/ai-providers?capability=text').then((r) => r.json()),
       fetch('/api/characters').then((r) => r.json()),
       fetch('/api/skills').then((r) => r.json()),
-    ]).then(([cred, prov, char, skill]) => {
+      fetch('/api/assets').then((r) => r.json()),
+    ]).then(([cred, prov, char, skill, asset]) => {
       setCredentials(cred.credentials ?? []);
       setProviders(prov.providers ?? []);
       setCharacters(char.characters ?? []);
       setSkills(skill.skills ?? []);
+      setAssets((asset.assets ?? []).filter((a: Asset) => a.contentText));
     });
   }, []);
+
+  // When asset is selected, fetch its full content
+  async function handleAssetSelect(id: string) {
+    setSelectedAssetId(id);
+    setSelectedAsset(null);
+    if (!id) return;
+    const res = await fetch(`/api/assets/${id}`);
+    const data = await res.json();
+    setSelectedAsset(data.asset ?? null);
+  }
 
   const selectedCredential = credentials.find((c) => c.id === credentialId);
   const selectedProvider = providers.find((p) => p.code === selectedCredential?.providerCode);
   const currentAdType = AD_TYPES.find((t) => t.code === adType)!;
-  const hasInput = product || brand || target || usp;
+  const hasInputNew = product || brand || target || usp;
+  const hasInputAsset = selectedAsset?.contentText;
+  const canSubmit = inputMode === 'new' ? hasInputNew : !!hasInputAsset;
 
   function handleAdTypeChange(code: string) {
     setAdType(code);
@@ -77,16 +98,31 @@ export default function VideoAdPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!hasInput) return;
+    if (!canSubmit) return;
     setError(null);
     setResult(null);
     setLoading(true);
+
+    // Build the topic/content to send to API
+    let topicPayload: Record<string, string> = {};
+    if (inputMode === 'asset' && selectedAsset?.contentText) {
+      // Use asset content as source — pass as "extra" with context
+      topicPayload = {
+        product: selectedAsset.title,
+        brand: brand,
+        target: target,
+        usp: '',
+        extra: `เนื้อหาต้นฉบับจากคลังไฟล์:\n\n${selectedAsset.contentText}\n\n${extra ? `ข้อมูลเพิ่มเติม: ${extra}` : ''}`
+      };
+    } else {
+      topicPayload = { product, brand, target, usp, extra };
+    }
 
     const res = await fetch('/api/workflows/video-ad/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        adType, platform, product, brand, target, usp, duration, extra,
+        adType, platform, duration, ...topicPayload,
         credentialId, modelCode,
         characterId: characterId || undefined,
         skillId: skillId || undefined
@@ -119,12 +155,11 @@ export default function VideoAdPage() {
           <span className="text-xs text-[#9C9690] border border-[#2C2A35] rounded-full px-2.5 py-1">
             Script & Storyboard Phase
           </span>
-          <p className="text-[10px] text-[#9C9690] mt-1">Video generation → Phase 2</p>
         </div>
       </div>
 
       {/* Ad Type selector */}
-      <div className="mt-6 mb-6">
+      <div className="mt-6 mb-5">
         <label className="block text-xs text-[#9C9690] mb-2">ประเภทโฆษณา</label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {AD_TYPES.map((t) => (
@@ -143,81 +178,132 @@ export default function VideoAdPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
-        {/* Input fields */}
-        <div className="rounded-2xl border border-[#2C2A35] p-4 space-y-3">
-          <p className="text-xs text-[#9C9690] font-semibold uppercase tracking-wider">
-            ข้อมูลสินค้า/โฆษณา — กรอกอย่างน้อย 1 ช่อง
-          </p>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-[#9C9690] mb-1">
-                สินค้า <span className="text-[10px] opacity-60">เช่น ครีมกันแดด SPF50</span>
-              </label>
-              <input value={product} onChange={(e) => setProduct(e.target.value)}
-                placeholder="เช่น ครีมกันแดด SPF50"
-                className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#9C9690] mb-1">
-                แบรนด์ <span className="text-[10px] opacity-60">เช่น Aura Glow</span>
-              </label>
-              <input value={brand} onChange={(e) => setBrand(e.target.value)}
-                placeholder="เช่น Aura Glow"
-                className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs text-[#9C9690] mb-1">
-              กลุ่มเป้าหมาย <span className="text-[10px] opacity-60">เช่น ผู้หญิง 25-35 ปี ชอบดูแลผิว</span>
-            </label>
-            <input value={target} onChange={(e) => setTarget(e.target.value)}
-              placeholder="เช่น ผู้หญิง 25-35 ปี ชอบดูแลผิว"
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
-          </div>
-
-          <div>
-            <label className="block text-xs text-[#9C9690] mb-1">
-              จุดขาย / USP <span className="text-[10px] opacity-60">เช่น ซึมเร็ว ไม่เหนียว กันน้ำ 8 ชั่วโมง</span>
-            </label>
-            <textarea value={usp} onChange={(e) => setUsp(e.target.value)}
-              placeholder="เช่น ซึมเร็ว ไม่เหนียว กันน้ำ 8 ชั่วโมง ทดสอบแพทย์แล้ว"
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[60px] resize-none" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-[#9C9690] mb-1">ความยาววิดีโอ</label>
-              <select value={duration} onChange={(e) => setDuration(e.target.value)}
-                className="w-full rounded-xl px-3.5 py-2.5 text-sm">
-                <option value="">ไม่ระบุ</option>
-                {(DURATION_OPTIONS[adType] ?? []).map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-            </div>
-            {adType === 'storyboard' || adType === 'ad_package' ? (
-              <div>
-                <label className="block text-xs text-[#9C9690] mb-1">Platform หลัก</label>
-                <select value={platform} onChange={(e) => setPlatform(e.target.value)}
-                  className="w-full rounded-xl px-3.5 py-2.5 text-sm">
-                  <option value="">ไม่ระบุ</option>
-                  {PLATFORM_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            ) : <div />}
-          </div>
-
-          <div>
-            <label className="block text-xs text-[#9C9690] mb-1">
-              ข้อมูลเพิ่มเติม <span className="text-[10px] opacity-60">เช่น สี mood บรรยากาศ โปรโมชัน</span>
-            </label>
-            <textarea value={extra} onChange={(e) => setExtra(e.target.value)}
-              placeholder="เช่น สีพาสเทล บรรยากาศสดใส โปรซื้อ 2 แถม 1 ราคา 590 บาท"
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[60px] resize-none" />
+        {/* Input mode toggle */}
+        <div>
+          <label className="block text-xs text-[#9C9690] mb-2">แหล่งข้อมูล</label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => { setInputMode('new'); setResult(null); }}
+              className={`flex-1 text-sm py-2.5 rounded-xl border transition-colors font-semibold ${
+                inputMode === 'new' ? 'border-gold bg-gold/10 text-gold' : 'border-[#2C2A35] text-[#9C9690]'
+              }`}>
+              ✏️ กรอกข้อมูลใหม่
+            </button>
+            <button type="button" onClick={() => { setInputMode('asset'); setResult(null); }}
+              className={`flex-1 text-sm py-2.5 rounded-xl border transition-colors font-semibold ${
+                inputMode === 'asset' ? 'border-gold bg-gold/10 text-gold' : 'border-[#2C2A35] text-[#9C9690]'
+              }`}>
+              📂 เลือกจากคลังไฟล์
+            </button>
           </div>
         </div>
+
+        {/* Asset selector mode */}
+        {inputMode === 'asset' && (
+          <div className="rounded-2xl border border-[#2C2A35] p-4 space-y-3">
+            <p className="text-xs text-[#9C9690] font-semibold uppercase tracking-wider">
+              เลือกไฟล์จากคลังไฟล์
+            </p>
+            {assets.length === 0 ? (
+              <p className="text-sm text-[#9C9690]">
+                ยังไม่มีไฟล์ในคลัง —{' '}
+                <Link href="/seo" className="text-gold">ไปสร้างบทความ SEO ก่อน</Link>
+              </p>
+            ) : (
+              <select value={selectedAssetId} onChange={(e) => handleAssetSelect(e.target.value)}
+                className="w-full rounded-xl px-3.5 py-2.5 text-sm">
+                <option value="">เลือกไฟล์...</option>
+                {assets.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.title} · {new Date(a.createdAt).toLocaleDateString('th-TH')}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Preview selected asset */}
+            {selectedAsset?.contentText && (
+              <div className="rounded-xl bg-[#15151A] border border-[#2C2A35] p-3">
+                <p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1.5">Preview เนื้อหาที่เลือก</p>
+                <p className="text-xs text-[#9C9690] leading-relaxed line-clamp-4">
+                  {selectedAsset.contentText.slice(0, 300)}
+                  {selectedAsset.contentText.length > 300 && '...'}
+                </p>
+              </div>
+            )}
+
+            {/* Optional extra info even when using asset */}
+            <div>
+              <label className="block text-xs text-[#9C9690] mb-1">
+                ข้อมูลเพิ่มเติม <span className="text-[10px] opacity-60">(optional) เช่น แบรนด์ กลุ่มเป้าหมาย โปรโมชัน</span>
+              </label>
+              <textarea value={extra} onChange={(e) => setExtra(e.target.value)}
+                placeholder="เช่น แบรนด์: Aura Grow | กลุ่ม: ผู้หญิง 25-35 | โปร: ซื้อ 2 แถม 1"
+                className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[60px] resize-none" />
+            </div>
+          </div>
+        )}
+
+        {/* Manual input mode */}
+        {inputMode === 'new' && (
+          <div className="rounded-2xl border border-[#2C2A35] p-4 space-y-3">
+            <p className="text-xs text-[#9C9690] font-semibold uppercase tracking-wider">
+              ข้อมูลสินค้า/โฆษณา — กรอกอย่างน้อย 1 ช่อง
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-[#9C9690] mb-1">สินค้า <span className="text-[10px] opacity-60">เช่น ครีมกันแดด SPF50</span></label>
+                <input value={product} onChange={(e) => setProduct(e.target.value)}
+                  placeholder="เช่น ครีมกันแดด SPF50"
+                  className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-[#9C9690] mb-1">แบรนด์ <span className="text-[10px] opacity-60">เช่น Aura Glow</span></label>
+                <input value={brand} onChange={(e) => setBrand(e.target.value)}
+                  placeholder="เช่น Aura Glow"
+                  className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-[#9C9690] mb-1">กลุ่มเป้าหมาย <span className="text-[10px] opacity-60">เช่น ผู้หญิง 25-35 ปี</span></label>
+              <input value={target} onChange={(e) => setTarget(e.target.value)}
+                placeholder="เช่น ผู้หญิง 25-35 ปี ชอบดูแลผิว"
+                className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-[#9C9690] mb-1">จุดขาย / USP <span className="text-[10px] opacity-60">เช่น ซึมเร็ว ไม่เหนียว กันน้ำ 8 ชม.</span></label>
+              <textarea value={usp} onChange={(e) => setUsp(e.target.value)}
+                placeholder="เช่น ซึมเร็ว ไม่เหนียว กันน้ำ 8 ชั่วโมง ทดสอบแพทย์แล้ว"
+                className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[60px] resize-none" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-[#9C9690] mb-1">ความยาววิดีโอ</label>
+                <select value={duration} onChange={(e) => setDuration(e.target.value)}
+                  className="w-full rounded-xl px-3.5 py-2.5 text-sm">
+                  <option value="">ไม่ระบุ</option>
+                  {(DURATION_OPTIONS[adType] ?? []).map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              {(adType === 'storyboard' || adType === 'ad_package') && (
+                <div>
+                  <label className="block text-xs text-[#9C9690] mb-1">Platform หลัก</label>
+                  <select value={platform} onChange={(e) => setPlatform(e.target.value)}
+                    className="w-full rounded-xl px-3.5 py-2.5 text-sm">
+                    <option value="">ไม่ระบุ</option>
+                    {PLATFORM_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs text-[#9C9690] mb-1">รายละเอียดเพิ่มเติม <span className="text-[10px] opacity-60">เช่น สี mood โปรโมชัน</span></label>
+              <textarea value={extra} onChange={(e) => setExtra(e.target.value)}
+                placeholder="เช่น สีพาสเทล บรรยากาศสดใส โปรซื้อ 2 แถม 1 ราคา 590 บาท"
+                className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[60px] resize-none" />
+            </div>
+          </div>
+        )}
 
         {/* AI + Model */}
         <div className="grid grid-cols-2 gap-3">
@@ -247,9 +333,7 @@ export default function VideoAdPage() {
         {/* Character + Skill */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-[#9C9690] mb-1.5">
-              ตัวละคร <span className="text-[10px] opacity-60">(optional)</span>
-            </label>
+            <label className="block text-xs text-[#9C9690] mb-1.5">ตัวละคร <span className="text-[10px] opacity-60">(optional)</span></label>
             <select value={characterId} onChange={(e) => setCharacterId(e.target.value)}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">ไม่ใช้ตัวละคร</option>
@@ -257,9 +341,7 @@ export default function VideoAdPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-[#9C9690] mb-1.5">
-              Skill <span className="text-[10px] opacity-60">(optional)</span>
-            </label>
+            <label className="block text-xs text-[#9C9690] mb-1.5">Skill <span className="text-[10px] opacity-60">(optional)</span></label>
             <select value={skillId} onChange={(e) => setSkillId(e.target.value)}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm">
               <option value="">ใช้ prompt เริ่มต้น</option>
@@ -270,13 +352,14 @@ export default function VideoAdPage() {
           </div>
         </div>
 
-        {!hasInput && <p className="text-xs text-[#9C9690]">กรอกอย่างน้อย 1 ช่องด้านบน</p>}
+        {!canSubmit && inputMode === 'new' && <p className="text-xs text-[#9C9690]">กรอกอย่างน้อย 1 ช่องด้านบน</p>}
+        {!canSubmit && inputMode === 'asset' && <p className="text-xs text-[#9C9690]">เลือกไฟล์จากคลังไฟล์ก่อน</p>}
         {error && <p className="text-sm text-[#C9716A]">{error}</p>}
 
-        <button type="submit" disabled={loading || !hasInput || !credentialId || !modelCode}
+        <button type="submit" disabled={loading || !canSubmit || !credentialId || !modelCode}
           className="rounded-xl bg-gold text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50 w-full">
           {loading
-            ? `กำลังสร้าง ${currentAdType.emoji} ${currentAdType.label}...`
+            ? `กำลังสร้าง ${currentAdType.emoji}...`
             : `สร้าง ${currentAdType.emoji} ${currentAdType.label}`}
         </button>
       </form>
@@ -296,7 +379,7 @@ export default function VideoAdPage() {
               ดู Generation Recipe →
             </Link>
             <a href={`data:text/plain;charset=utf-8,${encodeURIComponent(result.text)}`}
-              download={`${adType}-${brand || product}.txt`}
+              download={`${adType}.txt`}
               className="text-sm font-semibold text-[#9C9690]">
               ดาวน์โหลด .txt
             </a>
