@@ -4,7 +4,7 @@
 
 import { Worker, Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
-import { decrypt } from '@/lib/encryption'
+import { decryptSecret } from '@/lib/encryption'
 import { getRedisConnection, VideoJobPayload } from './videoQueue'
 import { startVeoGeneration, pollVeoOperation, uploadVeoVideoToBlob } from '@/lib/ai/veo'
 
@@ -35,7 +35,7 @@ async function processVideoJob(job: Job<VideoJobPayload>): Promise<void> {
   })
   if (!credential) throw new Error('ไม่พบ Credential ที่ระบุ')
 
-  const apiKey = decrypt(credential.encryptedKey, credential.encryptionIv)
+  const apiKey = decryptSecret(credential.encryptedKey, credential.encryptionIv)
 
   let blobUrl: string
 
