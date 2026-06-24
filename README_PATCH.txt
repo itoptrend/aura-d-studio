@@ -1,19 +1,21 @@
 แตก zip แล้วคัดลอก src/ ไปวางทับที่ D:\Aura-D-Studio\
 
-2 features ใหม่:
+Workflow Continuity — ต่อยอดเนื้อหาระหว่างโมดูล:
 
-🌟 Character × Content:
-- characters/page.tsx: เพิ่มปุ่มลัดใต้แต่ละ Character
-  "สร้างเนื้อหาด้วย [ชื่อ]" → ✍️ SEO / 📱 Social / 🎬 Video/Ad
-- seo/page.tsx: เพิ่ม Character dropdown
-  รองรับ URL param ?characterId=... (กดจาก Character page)
-- seo-article/run/route.ts: ส่ง character context ให้ AI
+1. Generation Recipe → ปุ่ม "ต่อยอดจากเนื้อหานี้"
+   - 📱 สร้าง Social Content (ใช้หัวข้อเดิม)
+   - 🖼️ สร้างภาพประกอบ (ใช้หัวข้อเป็น prompt)
+   - 🔊 สร้างเสียงพากย์ (ใช้ 300 ตัวแรกของเนื้อหา)
+   - 🎬 สร้าง Video Script (ใช้หัวข้อเดิม)
 
-⚡ Quick Duplicate:
-- assets/[id]/page.tsx: ปุ่ม "⎘ ก๊อป" ใน Generation Recipe
-  กดแล้วไป SEO page พร้อมหัวข้อเดิมกรอกให้อัตโนมัติ
+2. URL Params ทุกหน้ารับค่าได้:
+   - social: ?characterId=, ?topic=
+   - image: ?prompt=
+   - audio: ?text=
+   - video: ?characterId=, ?topic=
+   (กดจาก Character Engine หรือ Generation Recipe แล้ว pre-fill ทันที)
 
 รัน:
   git add .
-  git commit -m "add Character x Content shortcuts and Quick Duplicate"
+  git commit -m "add workflow continuity - continue from any content to next module"
   git push

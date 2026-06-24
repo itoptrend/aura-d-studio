@@ -158,7 +158,38 @@ export default function AssetDetailPage() {
         )
       )}
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-4">
+        {/* Continue Workflow — only for text documents */}
+        {asset.type === 'document' && asset.contentText && !asset.contentText.startsWith('data:') && (
+          <div className="rounded-2xl border border-[#2C2A35] p-4">
+            <p className="text-xs text-[#9C9690] font-semibold uppercase tracking-wider mb-3">
+              ต่อยอดจากเนื้อหานี้
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              <Link
+                href={`/social?topic=${encodeURIComponent(asset.title.slice(0, 80))}`}
+                className="text-xs font-semibold text-bone border border-[#2C2A35] rounded-xl px-3 py-2 hover:border-gold hover:text-gold transition-colors">
+                📱 สร้าง Social Content
+              </Link>
+              <Link
+                href={`/image?prompt=${encodeURIComponent(asset.title.slice(0, 100))}`}
+                className="text-xs font-semibold text-bone border border-[#2C2A35] rounded-xl px-3 py-2 hover:border-gold hover:text-gold transition-colors">
+                🖼️ สร้างภาพประกอบ
+              </Link>
+              <Link
+                href={`/audio?text=${encodeURIComponent(asset.contentText.slice(0, 300))}`}
+                className="text-xs font-semibold text-bone border border-[#2C2A35] rounded-xl px-3 py-2 hover:border-gold hover:text-gold transition-colors">
+                🔊 สร้างเสียงพากย์
+              </Link>
+              <Link
+                href={`/video?topic=${encodeURIComponent(asset.title.slice(0, 80))}`}
+                className="text-xs font-semibold text-bone border border-[#2C2A35] rounded-xl px-3 py-2 hover:border-gold hover:text-gold transition-colors">
+                🎬 สร้าง Video Script
+              </Link>
+            </div>
+          </div>
+        )}
+
         <Link href="/assets" className="text-sm text-[#9C9690] hover:text-bone">
           ← กลับคลังไฟล์
         </Link>

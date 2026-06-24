@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 import { CopyButton } from '@/components/CopyButton';
@@ -72,7 +73,15 @@ export default function VideoAdPage() {
   const { adType, platform, inputMode, product, brand, target, usp, duration, extra,
     credentialId, modelCode, characterId, skillId, selectedAssetId } = form;
 
+  const searchParams = useSearchParams();
+
   useEffect(() => {
+    // Pre-fill from URL params
+    const topicParam = searchParams.get('topic');
+    if (topicParam) setField('product', topicParam);
+    const charId = searchParams.get('characterId');
+    if (charId) setField('characterId', charId);
+
     Promise.all([
       fetch('/api/credentials').then((r) => r.json()),
       fetch('/api/ai-providers?capability=text').then((r) => r.json()),

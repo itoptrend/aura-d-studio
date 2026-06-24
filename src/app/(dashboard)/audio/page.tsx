@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 import {
@@ -49,7 +50,13 @@ export default function AudioPage() {
   });
   const { text, credentialId, modelCode, voice, speed } = form;
 
+  const searchParams = useSearchParams();
+
   useEffect(() => {
+    // Pre-fill text from URL (?text=...)
+    const textParam = searchParams.get('text');
+    if (textParam) setField('text', textParam);
+
     Promise.all([
       fetch('/api/credentials').then((r) => r.json()),
       fetch('/api/ai-providers?capability=audio').then((r) => r.json()),

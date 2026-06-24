@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 import { CopyButton } from '@/components/CopyButton';
 import { useToast } from '@/components/Toast';
@@ -63,11 +64,11 @@ export default function SocialContentPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
 
   const { success: toastSuccess, error: toastError } = useToast();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
 
-  // Persist form data across navigation
   const { values: form, setField, clearForm, saveForm, savedAt } = useFormPersist('social', {
     platform: 'facebook', contentType: 'caption',
     topic: '', product: '', target: '', extra: '',
@@ -87,7 +88,15 @@ export default function SocialContentPage() {
       setCharacters(char.characters ?? []);
       setSkills(skill.skills ?? []);
     });
-  }, []);
+
+    // Pre-select character from URL param (?characterId=...)
+    const charId = searchParams.get('characterId');
+    if (charId) setField('characterId', charId);
+
+    // Pre-fill topic from URL param (?topic=...)
+    const topicParam = searchParams.get('topic');
+    if (topicParam) setField('topic', topicParam);
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedCredential = credentials.find((c) => c.id === credentialId);
   const selectedProvider = providers.find((p) => p.code === selectedCredential?.providerCode);

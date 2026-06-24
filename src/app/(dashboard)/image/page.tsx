@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 
@@ -38,7 +39,13 @@ export default function ImageGenerationPage() {
   });
   const { prompt, negativePrompt, style, aspectRatio, credentialId, modelCode } = form;
 
+  const searchParams = useSearchParams();
+
   useEffect(() => {
+    // Pre-fill prompt from URL
+    const promptParam = searchParams.get('prompt');
+    if (promptParam) setField('prompt', promptParam);
+
     Promise.all([
       fetch('/api/credentials').then((r) => r.json()),
       fetch('/api/ai-providers?capability=image').then((r) => r.json()),
