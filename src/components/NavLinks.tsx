@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: '/seo',                  label: 'SEO' },
   { href: '/social',               label: 'Social' },
   { href: '/video',                label: 'Video/Ad' },
+  { href: '/video-generate',       label: '🎬 วิดีโอ AI' },
   { href: '/image',                label: 'สร้างภาพ' },
   { href: '/audio',                label: 'สร้างเสียง' },
   { href: '/characters',           label: 'Character' },
@@ -40,7 +41,6 @@ export function NavLinks() {
             }`}
           >
             {item.label}
-            {/* Active underline indicator */}
             {active && (
               <span className="absolute -bottom-[13px] left-0 right-0 h-px bg-gold rounded-full" />
             )}

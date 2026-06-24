@@ -30,6 +30,7 @@ model Team {
   workflows   Workflow[]
   assets      Asset[]
   characters  Character[]
+  videoJobs   VideoJob[]
 
   @@map("team")
 }
@@ -115,6 +116,7 @@ model Credential {
   team           Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
   provider       AiProvider      @relation(fields: [providerCode], references: [code])
   nodeExecutions NodeExecution[]
+  videoJobs      VideoJob[]
 
   @@unique([teamId, providerCode, displayName])
   @@map("credential")
@@ -247,7 +249,9 @@ model Asset {
   teamId                String    @map("team_id")
   type                  AssetType
   title                 String
-  contentText           String?   @map("content_text") // for type=document in this slice; real schema uses file_url + storage
+  contentText           String?   @map("content_text")      // document / text content
+  fileUrl               String?   @map("file_url")          // Vercel Blob URL — video, audio, image (Phase 3+)
+  thumbnailUrl          String?   @map("thumbnail_url")     // optional poster frame for video assets
   sourceNodeExecutionId String?   @map("source_node_execution_id")
   sourceRunId           String?   @map("source_run_id")
   isFavorited           Boolean   @default(false) @map("is_favorited")
@@ -259,4 +263,50 @@ model Asset {
   sourceRun           Run?           @relation(fields: [sourceRunId], references: [id])
 
   @@map("asset")
+}
+
+// ---------------------------------------------------------------------------
+// VIDEO JOB — async generation queue (Phase 3)
+// ---------------------------------------------------------------------------
+
+enum VideoJobStatus {
+  pending    // รอ worker หยิบไปทำ
+  running    // กำลังสร้างวิดีโอที่ provider
+  succeeded  // เสร็จแล้ว blobUrl พร้อมใช้
+  failed     // ล้มเหลวหลัง retry ครบ
+  stalled    // ค้างนานเกิน 15 นาที — cron จะ re-queue
+  cancelled  // user ยกเลิก
+}
+
+model VideoJob {
+  id             String         @id @default(uuid())
+  teamId         String         @map("team_id")
+  provider       String         // 'google' | 'kling' | 'runway'
+  modelCode      String         @map("model_code")           // e.g. 'veo-3.0-generate-preview'
+  prompt         String                                       // prompt ที่ส่งไป provider
+  negativePrompt String?        @map("negative_prompt")
+  durationSecs   Int            @default(8) @map("duration_secs")
+  aspectRatio    String         @default("16:9") @map("aspect_ratio") // '16:9' | '9:16' | '1:1'
+  credentialId   String?        @map("credential_id")        // Credential ที่ใช้
+
+  status         VideoJobStatus @default(pending)
+  attempts       Int            @default(0)                  // จำนวนครั้งที่ลองแล้ว
+  maxAttempts    Int            @default(3) @map("max_attempts")
+  providerJobId  String?        @map("provider_job_id")      // operation name จาก Veo / task id จาก Kling
+  blobUrl        String?        @map("blob_url")             // Vercel Blob URL เมื่อสำเร็จ
+  assetId        String?        @map("asset_id")             // Asset ที่ถูกสร้างเมื่อสำเร็จ
+  errorMessage   String?        @map("error_message")
+  errorCode      String?        @map("error_code")           // 'content_policy' | 'timeout' | 'api_error'
+
+  stalledAt      DateTime?      @map("stalled_at")           // เวลาที่ detect ว่า stalled
+  startedAt      DateTime?      @map("started_at")
+  finishedAt     DateTime?      @map("finished_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  team           Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  credential     Credential?    @relation(fields: [credentialId], references: [id])
+
+  @@index([teamId, status])     // query งานของ team ตาม status
+  @@index([status, createdAt])  // cron หยิบงาน pending เรียงตามเวลา
+  @@map("video_job")
 }
