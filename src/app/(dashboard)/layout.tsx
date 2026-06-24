@@ -11,7 +11,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="min-h-screen">
       <header className="border-b border-[#2C2A35] px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-8">
-          <span className="font-serif text-lg">Aura-D Studio</span>
+          <Link href="/" className="font-serif text-lg hover:text-gold transition-colors">Aura-D Studio</Link>
           <nav className="flex items-center gap-5 text-sm text-[#9C9690]">
             <Link href="/seo" className="hover:text-bone">SEO</Link>
             <Link href="/social" className="hover:text-bone">Social</Link>
