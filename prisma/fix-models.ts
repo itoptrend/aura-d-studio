@@ -1,83 +1,47 @@
 // รัน: npx tsx prisma/fix-models.ts
-// ลบโมเดลที่ใช้ไม่ได้ออกจากระบบ และ upsert โมเดลที่ถูกต้อง
-
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
-// โมเดลที่ต้องปิดการใช้งาน (ไม่มีอยู่จริงใน AI Studio API)
 const DEACTIVATE = [
-  'imagen-3.0-generate-002',           // Vertex AI only — ไม่ใช่ AI Studio
-  'gemini-2.0-flash-preview-image-generation', // deprecated ต.ค. 2025
-  'gemini-2.5-flash-image-preview',    // deprecated ต.ค. 2025
+  'imagen-3.0-generate-002',
+  'gemini-2.0-flash-preview-image-generation',
+  'gemini-2.5-flash-image-preview',
+  'gemini-2.5-flash-preview-tts',  // old name — replaced below with correct
+  'gemini-3.1-flash-preview-tts',  // wrong name
 ];
 
-// โมเดลที่ถูกต้องสำหรับสร้างภาพผ่าน AI Studio
-const CORRECT_IMAGE_MODELS = [
-  {
-    providerCode: 'google',
-    modelCode: 'gemini-2.5-flash-image',
-    displayName: 'Nano Banana — สร้างภาพเร็ว (รองรับทุก aspect ratio)',
-    capability: 'image',
-    isActive: true
-  },
-  {
-    providerCode: 'google',
-    modelCode: 'gemini-3.1-flash-image',
-    displayName: 'Nano Banana 2 — สร้างภาพ HD คุณภาพสูงขึ้น',
-    capability: 'image',
-    isActive: true
-  },
-  {
-    providerCode: 'google',
-    modelCode: 'gemini-3-pro-image',
-    displayName: 'Nano Banana Pro — คุณภาพสูงสุด 4K รองรับข้อความในภาพ',
-    capability: 'image',
-    isActive: true
-  }
-];
-
-// OpenAI image models — add separately
-const OPENAI_IMAGE_MODELS = [
-  { providerCode: 'openai', modelCode: 'gpt-image-1',      displayName: 'GPT Image 1 — คุณภาพสูง รองรับข้อความในภาพ', capability: 'image', isActive: true },
-  { providerCode: 'openai', modelCode: 'gpt-image-1-mini', displayName: 'GPT Image 1 Mini — เร็ว ประหยัด',              capability: 'image', isActive: true },
-  { providerCode: 'openai', modelCode: 'gpt-image-2',      displayName: 'GPT Image 2 — Arbitrary Resolution สูงสุด',    capability: 'image', isActive: true },
+const ALL_MODELS = [
+  // Google — image
+  { providerCode: 'google', modelCode: 'gemini-2.5-flash-image',    displayName: 'Nano Banana — สร้างภาพ (รองรับทุก aspect ratio)', capability: 'image' },
+  { providerCode: 'google', modelCode: 'gemini-3.1-flash-image',    displayName: 'Nano Banana 2 — สร้างภาพ HD',                       capability: 'image' },
+  { providerCode: 'google', modelCode: 'gemini-3-pro-image',         displayName: 'Nano Banana Pro — 4K รองรับข้อความในภาพ',            capability: 'image' },
+  // Google — audio (correct TTS model names)
+  { providerCode: 'google', modelCode: 'gemini-2.5-flash-preview-tts', displayName: 'Gemini 2.5 Flash TTS — เสียงพากย์เร็ว',          capability: 'audio' },
+  { providerCode: 'google', modelCode: 'gemini-3.1-flash-tts-preview', displayName: 'Gemini 3.1 Flash TTS — เสียงพากย์คุณภาพสูง',     capability: 'audio' },
+  // OpenAI — image
+  { providerCode: 'openai', modelCode: 'gpt-image-1',      displayName: 'GPT Image 1 — คุณภาพสูง รองรับข้อความในภาพ', capability: 'image' },
+  { providerCode: 'openai', modelCode: 'gpt-image-1-mini', displayName: 'GPT Image 1 Mini — เร็ว ประหยัด',              capability: 'image' },
+  { providerCode: 'openai', modelCode: 'gpt-image-2',      displayName: 'GPT Image 2 — Arbitrary Resolution สูงสุด',    capability: 'image' },
 ];
 
 async function main() {
-  console.log('🔧 แก้ไขโมเดลสร้างภาพ...\n');
+  console.log('🔧 อัปเดตโมเดล...\n');
 
-  // ปิดโมเดลเก่าที่ใช้ไม่ได้
-  for (const modelCode of DEACTIVATE) {
-    const result = await prisma.aiModel.updateMany({
-      where: { modelCode },
-      data: { isActive: false }
-    });
-    if (result.count > 0) {
-      console.log(`❌ ปิด: ${modelCode} (${result.count} รายการ)`);
-    }
+  for (const code of DEACTIVATE) {
+    const r = await prisma.aiModel.updateMany({ where: { modelCode: code }, data: { isActive: false } });
+    if (r.count > 0) console.log(`❌ ปิด: ${code}`);
   }
 
-  // upsert โมเดล Google image
-  for (const m of CORRECT_IMAGE_MODELS) {
+  for (const m of ALL_MODELS) {
     await prisma.aiModel.upsert({
       where: { providerCode_modelCode: { providerCode: m.providerCode, modelCode: m.modelCode } },
       update: { displayName: m.displayName, capability: m.capability, isActive: true },
-      create: m
+      create: { ...m, isActive: true }
     });
-    console.log(`✅ พร้อมใช้: ${m.displayName}`);
+    console.log(`✅ [${m.capability}] ${m.displayName}`);
   }
 
-  // upsert โมเดล OpenAI image
-  for (const m of OPENAI_IMAGE_MODELS) {
-    await prisma.aiModel.upsert({
-      where: { providerCode_modelCode: { providerCode: m.providerCode, modelCode: m.modelCode } },
-      update: { displayName: m.displayName, capability: m.capability, isActive: true },
-      create: m
-    });
-    console.log(`✅ พร้อมใช้: ${m.displayName}`);
-  }
-
-  console.log('\nเสร็จแล้ว — รีเฟรชหน้าสร้างภาพ แล้วเลือก OpenAI หรือ Google ได้เลยครับ');
+  console.log('\nเสร็จแล้ว!');
 }
 
 main()

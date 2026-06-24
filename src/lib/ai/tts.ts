@@ -100,11 +100,41 @@ export async function generateAudioOpenAI(params: {
 }
 
 // ─── GOOGLE GEMINI TTS ────────────────────────────────────────────────────────
+// Gemini TTS returns raw PCM (16-bit, 24kHz, mono) — must wrap in WAV header
+// before storing/playing in browser (data:audio/wav;base64,...)
+function pcmToWav(pcmBase64: string, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): string {
+  const pcmBuffer = Buffer.from(pcmBase64, 'base64');
+  const dataLength = pcmBuffer.length;
+  const wavBuffer = Buffer.alloc(44 + dataLength);
+
+  // RIFF header
+  wavBuffer.write('RIFF', 0);
+  wavBuffer.writeUInt32LE(36 + dataLength, 4);
+  wavBuffer.write('WAVE', 8);
+
+  // fmt chunk
+  wavBuffer.write('fmt ', 12);
+  wavBuffer.writeUInt32LE(16, 16);              // chunk size
+  wavBuffer.writeUInt16LE(1, 20);               // PCM format
+  wavBuffer.writeUInt16LE(numChannels, 22);
+  wavBuffer.writeUInt32LE(sampleRate, 24);
+  wavBuffer.writeUInt32LE(sampleRate * numChannels * bitsPerSample / 8, 28); // byte rate
+  wavBuffer.writeUInt16LE(numChannels * bitsPerSample / 8, 32);              // block align
+  wavBuffer.writeUInt16LE(bitsPerSample, 34);
+
+  // data chunk
+  wavBuffer.write('data', 36);
+  wavBuffer.writeUInt32LE(dataLength, 40);
+  pcmBuffer.copy(wavBuffer, 44);
+
+  return wavBuffer.toString('base64');
+}
+
 export async function generateAudioGemini(params: {
   apiKey: string;
-  model: string;     // 'gemini-2.5-flash-preview-tts'
+  model: string;
   text: string;
-  voice?: string;    // 'Aoede' | 'Charon' | 'Fenrir' | 'Kore' | 'Puck'
+  voice?: string;
 }): Promise<AudioResult> {
   const voice = params.voice ?? 'Aoede';
 
@@ -135,8 +165,7 @@ export async function generateAudioGemini(params: {
   const data = await res.json();
   const parts = data.candidates?.[0]?.content?.parts ?? [];
   const audioPart = parts.find(
-    (p: { inlineData?: { mimeType: string; data: string } }) =>
-      p.inlineData?.mimeType?.startsWith('audio/')
+    (p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData?.data
   );
 
   if (!audioPart?.inlineData) {
@@ -144,11 +173,15 @@ export async function generateAudioGemini(params: {
   }
 
   const { mimeType, data: base64 } = audioPart.inlineData;
-  const ext = mimeType.includes('wav') ? 'wav' : 'mp3';
+
+  // Gemini TTS returns raw PCM — convert to WAV for browser playback
+  const isPCM = mimeType.toLowerCase().includes('pcm') || mimeType.toLowerCase().includes('l16');
+  const wavBase64 = isPCM ? pcmToWav(base64) : base64;
+  const finalMimeType = isPCM ? 'audio/wav' : mimeType;
 
   return {
-    dataUrl: `data:${mimeType};base64,${base64}`,
-    mimeType,
+    dataUrl: `data:${finalMimeType};base64,${wavBase64}`,
+    mimeType: finalMimeType,
     durationEstimate: `~${Math.round(params.text.length / 15)} วินาที`,
     provider: 'google',
     model: params.model,
