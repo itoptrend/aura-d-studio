@@ -9,7 +9,8 @@ interface Credential { id: string; displayName: string; providerCode: string; }
 interface Provider { code: string; models: { modelCode: string; displayName: string }[]; }
 interface Character { id: string; name: string; avatarEmoji: string; }
 interface Skill { id: string; name: string; category: string; }
-interface Asset { id: string; title: string; type: string; contentText?: string | null; createdAt: string; }
+interface Asset { id: string; title: string; type: string; hasContent: boolean; thumbnail: string | null; isAudio: boolean; createdAt: string; }
+interface FullAsset { id: string; title: string; type: string; contentText: string | null; createdAt: string; }
 
 const AD_TYPES = [
   { code: 'facebook_video',  label: 'Facebook/IG Video Ad', emoji: '📘', description: 'สคริปต์โฆษณาวิดีโอ + visual direction' },
@@ -39,7 +40,7 @@ export default function VideoAdPage() {
   // Input mode: 'new' = กรอกใหม่, 'asset' = เลือกจากคลังไฟล์
   
   
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<FullAsset | null>(null);
 
   
   
@@ -81,7 +82,7 @@ export default function VideoAdPage() {
       setProviders(prov.providers ?? []);
       setCharacters(char.characters ?? []);
       setSkills(skill.skills ?? []);
-      setAssets((asset.assets ?? []).filter((a: Asset) => a.contentText));
+      setAssets((asset.assets ?? []).filter((a: Asset) => a.hasContent));
     });
   }, []);
 
