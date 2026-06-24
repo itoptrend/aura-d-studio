@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useFormPersist } from '@/lib/useFormPersist';
+import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 
 interface Credential { id: string; displayName: string; providerCode: string; }
 interface Provider { code: string; models: { modelCode: string; displayName: string }[]; }
@@ -65,7 +65,7 @@ export default function SocialContentPage() {
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
 
   // Persist form data across navigation
-  const [form, setField, clearForm] = useFormPersist('social', {
+  const { values: form, setField, clearForm, saveForm, savedAt } = useFormPersist('social', {
     platform: 'facebook', contentType: 'caption',
     topic: '', product: '', target: '', extra: '',
     credentialId: '', modelCode: '', characterId: '', skillId: ''
@@ -146,7 +146,22 @@ export default function SocialContentPage() {
 
   return (
     <div>
-      <h1 className="font-serif text-2xl mb-1">Social Content</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="font-serif text-2xl">Social Content</h1>
+        <div className="flex items-center gap-2">
+          {savedAt && (
+            <span className="text-[10px] text-[#9C9690]">
+              💾 บันทึกอัตโนมัติ {formatSavedAt(savedAt)}
+            </span>
+          )}
+          {(topic || product || target || extra) && (
+            <button onClick={() => { clearForm(); setResult(null); }}
+              className="text-xs text-[#9C9690] border border-[#2C2A35] rounded-lg px-2.5 py-1 hover:border-[#C9716A] hover:text-[#C9716A]">
+              ล้างข้อมูล
+            </button>
+          )}
+        </div>
+      </div>
       <p className="text-sm text-[#9C9690] mb-6">สร้างคอนเทนต์โซเชียลมีเดียทุก platform ด้วย AI</p>
 
       {/* Platform selector */}
@@ -291,12 +306,23 @@ export default function SocialContentPage() {
         )}
         {error && <p className="text-sm text-[#C9716A]">{error}</p>}
 
-        <button type="submit" disabled={loading || !hasInput || !credentialId || !modelCode}
-          className="rounded-xl bg-gold text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50">
-          {loading
-            ? `กำลังสร้าง ${currentPlatform.emoji}...`
-            : `สร้าง ${currentPlatform.label} Content`}
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button type="submit" disabled={loading || !hasInput || !credentialId || !modelCode}
+            className="rounded-xl bg-gold text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50">
+            {loading
+              ? `กำลังสร้าง ${currentPlatform.emoji}...`
+              : `สร้าง ${currentPlatform.label} Content`}
+          </button>
+          <button type="button" onClick={saveForm}
+            className="rounded-xl border border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690] px-4 py-2.5 text-sm">
+            💾 บันทึก
+          </button>
+          {savedAt && (
+            <span className="text-xs text-[#9C9690]">
+              บันทึกแล้ว {new Date(savedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
       </form>
 
       {/* Result */}

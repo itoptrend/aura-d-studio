@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useFormPersist } from '@/lib/useFormPersist';
+import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 
 interface Provider {
   code: string;
@@ -32,8 +32,8 @@ export default function SeoArticlePage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
 
-  // Persist form data across navigation
-  const [form, setField, clearForm] = useFormPersist('seo', {
+  // Persist form data across navigation — บันทึกลง localStorage อัตโนมัติทุกครั้งที่พิมพ์
+  const { values: form, setField, clearForm, saveForm, savedAt } = useFormPersist('seo', {
     topic: '', keyword: '', credentialId: '', modelCode: ''
   });
   const { topic, keyword, credentialId, modelCode } = form;
@@ -82,8 +82,7 @@ export default function SeoArticlePage() {
       setError(data.error ?? 'สร้างบทความไม่สำเร็จ');
       return;
     }
-    clearForm(); // ล้าง form หลังสร้างสำเร็จ
-    setResult(data);
+    setResult(data); // ไม่ล้าง form อัตโนมัติ — ผู้ใช้กด "ล้างข้อมูล" เองเมื่อต้องการ
   }
 
   if (credentials.length === 0) {
@@ -100,7 +99,22 @@ export default function SeoArticlePage() {
 
   return (
     <div>
-      <h1 className="font-serif text-2xl mb-1">เขียนบทความ SEO</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="font-serif text-2xl">เขียนบทความ SEO</h1>
+        <div className="flex items-center gap-2">
+          {savedAt && (
+            <span className="text-[10px] text-[#9C9690]">
+              💾 บันทึกอัตโนมัติ {formatSavedAt(savedAt)}
+            </span>
+          )}
+          {(topic || keyword) && (
+            <button onClick={() => { clearForm(); setSelectedSkill(null); setResult(null); }}
+              className="text-xs text-[#9C9690] border border-[#2C2A35] rounded-lg px-2.5 py-1 hover:border-[#C9716A] hover:text-[#C9716A]">
+              ล้างข้อมูล
+            </button>
+          )}
+        </div>
+      </div>
       <p className="text-sm text-[#9C9690] mb-8">Wizard Mode — กรอกหัวข้อ เลือก AI แล้วกดสร้างได้เลย</p>
 
       {/* Selected skill badge */}
@@ -176,13 +190,27 @@ export default function SeoArticlePage() {
 
         {error && <p className="text-sm text-[#C9716A]">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-xl bg-gold text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50"
-        >
-          {loading ? 'กำลังสร้างบทความ...' : 'สร้างบทความ'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-xl bg-gold text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50"
+          >
+            {loading ? 'กำลังสร้างบทความ...' : 'สร้างบทความ'}
+          </button>
+          <button
+            type="button"
+            onClick={saveForm}
+            className="rounded-xl border border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690] px-4 py-2.5 text-sm"
+          >
+            💾 บันทึก
+          </button>
+          {savedAt && (
+            <span className="text-xs text-[#9C9690]">
+              บันทึกแล้ว {new Date(savedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
       </form>
 
       {result && (

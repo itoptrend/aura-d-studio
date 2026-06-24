@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useFormPersist } from '@/lib/useFormPersist';
+import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 
 interface Credential { id: string; displayName: string; providerCode: string; }
 interface Provider { code: string; models: { modelCode: string; displayName: string }[]; }
@@ -59,7 +59,7 @@ export default function VideoAdPage() {
   const [result, setResult] = useState<{ text: string; costCredit: number; assetId: string } | null>(null);
 
   // Persist form data across navigation
-  const [form, setField, clearForm] = useFormPersist('video', {
+  const { values: form, setField, clearForm, saveForm, savedAt } = useFormPersist('video', {
     adType: 'facebook_video', platform: '', inputMode: 'new',
     product: '', brand: '', target: '', usp: '', duration: '', extra: '',
     credentialId: '', modelCode: '', characterId: '', skillId: '',
@@ -142,6 +142,7 @@ export default function VideoAdPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) { setError(data.error ?? 'สร้างไม่สำเร็จ'); return; }
+    clearForm();
     setResult(data);
   }
 
@@ -162,10 +163,23 @@ export default function VideoAdPage() {
           <h1 className="font-serif text-2xl">Video/Ad Pipeline</h1>
           <p className="text-sm text-[#9C9690] mt-1">สร้างสคริปต์โฆษณา Storyboard และชุด Ad ครบวงจร</p>
         </div>
-        <div className="text-right flex-shrink-0 mt-1">
+        <div className="flex flex-col items-end gap-1 mt-1 flex-shrink-0">
           <span className="text-xs text-[#9C9690] border border-[#2C2A35] rounded-full px-2.5 py-1">
             Script & Storyboard Phase
           </span>
+          <div className="flex items-center gap-2">
+            {savedAt && (
+              <span className="text-[10px] text-[#9C9690]">
+                💾 {formatSavedAt(savedAt)}
+              </span>
+            )}
+            {(product || brand || target || usp) && (
+              <button onClick={() => { clearForm(); setResult(null); }}
+                className="text-xs text-[#9C9690] border border-[#2C2A35] rounded-lg px-2.5 py-1 hover:border-[#C9716A] hover:text-[#C9716A]">
+                ล้างข้อมูล
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -367,12 +381,23 @@ export default function VideoAdPage() {
         {!canSubmit && inputMode === 'asset' && <p className="text-xs text-[#9C9690]">เลือกไฟล์จากคลังไฟล์ก่อน</p>}
         {error && <p className="text-sm text-[#C9716A]">{error}</p>}
 
-        <button type="submit" disabled={loading || !canSubmit || !credentialId || !modelCode}
-          className="rounded-xl bg-gold text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50 w-full">
-          {loading
-            ? `กำลังสร้าง ${currentAdType.emoji}...`
-            : `สร้าง ${currentAdType.emoji} ${currentAdType.label}`}
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button type="submit" disabled={loading || !canSubmit || !credentialId || !modelCode}
+            className="flex-1 rounded-xl bg-gold text-black font-semibold px-5 py-2.5 text-sm disabled:opacity-50">
+            {loading
+              ? `กำลังสร้าง ${currentAdType.emoji}...`
+              : `สร้าง ${currentAdType.emoji} ${currentAdType.label}`}
+          </button>
+          <button type="button" onClick={saveForm}
+            className="rounded-xl border border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690] px-4 py-2.5 text-sm flex-shrink-0">
+            💾 บันทึก
+          </button>
+        </div>
+        {savedAt && (
+          <p className="text-xs text-[#9C9690]">
+            บันทึกแล้ว {new Date(savedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        )}
       </form>
 
       {/* Result */}
