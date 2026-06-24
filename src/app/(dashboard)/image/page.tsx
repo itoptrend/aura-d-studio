@@ -7,16 +7,13 @@ import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
 interface Credential { id: string; displayName: string; providerCode: string; }
 interface Provider { code: string; models: { modelCode: string; displayName: string; capability: string }[]; }
 
-const STYLES = [
-  { code: '',             label: 'ไม่ระบุ (AI เลือกเอง)' },
-  { code: 'photorealistic', label: '📷 Photorealistic' },
-  { code: 'anime',         label: '🎌 Anime / Illustration' },
-  { code: 'watercolor',    label: '🎨 Watercolor' },
-  { code: 'oil painting',  label: '🖼️ Oil Painting' },
-  { code: '3D render',     label: '💎 3D Render' },
-  { code: 'flat design',   label: '📐 Flat Design / Vector' },
-  { code: 'cinematic',     label: '🎬 Cinematic' },
-  { code: 'minimalist',    label: '◻️ Minimalist' },
+const ASPECT_RATIOS = [
+  { code: '1:1',  label: '1:1',  w: 40, h: 40, tip: 'Square — โซเชียล ทั่วไป' },
+  { code: '4:5',  label: '4:5',  w: 32, h: 40, tip: 'Portrait — Instagram Post' },
+  { code: '9:16', label: '9:16', w: 23, h: 40, tip: 'Vertical — TikTok / Reels / Stories' },
+  { code: '16:9', label: '16:9', w: 40, h: 23, tip: 'Landscape — YouTube / Banner' },
+  { code: '4:3',  label: '4:3',  w: 40, h: 30, tip: 'Standard — Presentation' },
+  { code: '3:4',  label: '3:4',  w: 30, h: 40, tip: 'Portrait — Print / Pinterest' },
 ];
 
 const PROMPT_EXAMPLES = [
@@ -148,27 +145,50 @@ export default function ImageGenerationPage() {
             className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
         </div>
 
-        {/* Aspect Ratio + Style row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-[#9C9690] mb-1.5">อัตราส่วนภาพ</label>
-            <select value={aspectRatio} onChange={(e) => setField('aspectRatio', e.target.value)}
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm">
-              <option value="1:1">⬛ 1:1 — Square (โซเชียล ทั่วไป)</option>
-              <option value="16:9">▬ 16:9 — Landscape (YouTube, Banner)</option>
-              <option value="9:16">▮ 9:16 — Portrait (TikTok, Reels, Stories)</option>
-              <option value="4:3">▭ 4:3 — Standard (Presentation)</option>
-            </select>
+        {/* Aspect Ratio — visual buttons */}
+        <div>
+          <label className="block text-xs text-[#9C9690] mb-2">อัตราส่วนภาพ</label>
+          <div className="flex items-end gap-3 flex-wrap">
+            {ASPECT_RATIOS.map((ar) => (
+              <button key={ar.code} type="button"
+                onClick={() => setField('aspectRatio', ar.code)}
+                title={ar.tip}
+                className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl border transition-colors ${
+                  aspectRatio === ar.code
+                    ? 'border-gold bg-gold/10'
+                    : 'border-[#2C2A35] hover:border-[#9C9690]'
+                }`}>
+                {/* Visual shape representing the ratio */}
+                <div
+                  className={`rounded border-2 ${aspectRatio === ar.code ? 'border-gold bg-gold/20' : 'border-[#9C9690]'}`}
+                  style={{ width: ar.w, height: ar.h }}
+                />
+                <span className={`text-[10px] font-mono font-bold ${aspectRatio === ar.code ? 'text-gold' : 'text-[#9C9690]'}`}>
+                  {ar.label}
+                </span>
+              </button>
+            ))}
           </div>
-          <div>
-            <label className="block text-xs text-[#9C9690] mb-1.5">สไตล์ภาพ</label>
-            <select value={style} onChange={(e) => setField('style', e.target.value)}
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm">
-              {STYLES.map((s) => (
-                <option key={s.code} value={s.code}>{s.label}</option>
-              ))}
-            </select>
-          </div>
+          <p className="text-[10px] text-[#9C9690] mt-1.5">
+            {ASPECT_RATIOS.find((r) => r.code === aspectRatio)?.tip ?? ''}
+          </p>
+        </div>
+
+        {/* Style dropdown */}
+        <div>
+          <label className="block text-xs text-[#9C9690] mb-1.5">สไตล์ภาพ</label>
+          <select value={style} onChange={(e) => setField('style', e.target.value)}
+            className="w-full rounded-xl px-3.5 py-2.5 text-sm">
+            <option value="">ไม่ระบุ (AI เลือกเอง)</option>
+            <option value="photorealistic">📷 Photorealistic</option>
+            <option value="anime">🎌 Anime / Illustration</option>
+            <option value="watercolor">🎨 Watercolor</option>
+            <option value="oil painting">🖼️ Oil Painting</option>
+            <option value="3D render">💎 3D Render</option>
+            <option value="flat design">📐 Flat Design / Vector</option>
+            <option value="cinematic">🎬 Cinematic</option>
+            <option value="minimalist">◻️ Minimalist</option>
+          </select>
         </div>
 
         {/* AI + Model */}
