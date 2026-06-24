@@ -1,14 +1,12 @@
 /**
  * Image Generation Gateway (Phase 2)
  * Supports:
- *   - Google Gemini Nano Banana (gemini-2.0-flash-preview-image-generation)
+ *   - Google Imagen 3 (imagen-3.0-generate-002) via /predict endpoint — full aspect ratio support
+ *   - Google Gemini Flash Image (gemini-2.0-flash-preview-image-generation) — 1:1 only
  *   - xAI Grok Imagine (grok-imagine-image-pro) via OpenAI-compatible API
- *
- * Phase 2: returns base64 data URLs stored in asset.contentText
- * Phase 3: migrate to object storage (S3/R2/Supabase Storage)
  */
 
-const GEMINI_IMAGE_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const GROK_API_BASE = 'https://api.x.ai/v1';
 
 export interface ImageResult {
@@ -19,14 +17,7 @@ export interface ImageResult {
   promptUsed: string;
 }
 
-// Map aspect ratio to prompt instruction (Gemini doesn't support imageGenerationConfig)
-const GEMINI_ASPECT_PROMPT: Record<string, string> = {
-  '1:1':  'square format, 1:1 aspect ratio',
-  '16:9': 'landscape format, 16:9 widescreen aspect ratio, wide horizontal composition',
-  '9:16': 'portrait format, 9:16 vertical aspect ratio, tall vertical composition',
-  '4:3':  'standard 4:3 aspect ratio',
-};
-
+// Grok: map aspect ratio to pixel size
 const GROK_SIZE: Record<string, string> = {
   '1:1':  '1024x1024',
   '16:9': '1344x768',
@@ -34,30 +25,65 @@ const GROK_SIZE: Record<string, string> = {
   '4:3':  '1024x768',
 };
 
-// ─── GOOGLE GEMINI (Nano Banana) ────────────────────────────────────────────
-export async function generateImageGemini(params: {
+// ─── GOOGLE IMAGEN 3 (/predict endpoint — supports aspectRatio natively) ────
+async function generateImageImagen3(params: {
   apiKey: string;
   model: string;
   prompt: string;
-  negativePrompt?: string;
-  aspectRatio?: string;
+  aspectRatio: string;
 }): Promise<ImageResult> {
-  // Gemini doesn't support imageGenerationConfig — inject aspect ratio into prompt
-  const aspectInstruction = params.aspectRatio && GEMINI_ASPECT_PROMPT[params.aspectRatio]
-    ? `, ${GEMINI_ASPECT_PROMPT[params.aspectRatio]}`
-    : '';
-  const finalPrompt = `${params.prompt}${aspectInstruction}`;
-
-  const body: Record<string, unknown> = {
-    contents: [{ parts: [{ text: finalPrompt }] }],
-    generationConfig: {
-      responseModalities: ['IMAGE']
-    }
-  };
-
   const res = await fetch(
-    `${GEMINI_IMAGE_API_BASE}/${params.model}:generateContent?key=${params.apiKey}`,
-    { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+    `${GEMINI_API_BASE}/${params.model}:predict?key=${params.apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        instances: [{ prompt: params.prompt }],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: params.aspectRatio   // '1:1' | '16:9' | '9:16' | '4:3' | '3:4'
+        }
+      })
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Imagen 3 API error (${res.status}): ${err}`);
+  }
+
+  const data = await res.json();
+  const prediction = data.predictions?.[0];
+  if (!prediction?.bytesBase64Encoded) {
+    throw new Error('Imagen 3 ไม่ได้ส่งรูปภาพกลับมา — ลองใหม่อีกครั้ง');
+  }
+
+  const mimeType = prediction.mimeType ?? 'image/png';
+  return {
+    dataUrl: `data:${mimeType};base64,${prediction.bytesBase64Encoded}`,
+    mimeType,
+    provider: 'google',
+    model: params.model,
+    promptUsed: params.prompt
+  };
+}
+
+// ─── GOOGLE GEMINI FLASH IMAGE (generateContent — 1:1 only) ─────────────────
+async function generateImageGeminiFlash(params: {
+  apiKey: string;
+  model: string;
+  prompt: string;
+}): Promise<ImageResult> {
+  const res = await fetch(
+    `${GEMINI_API_BASE}/${params.model}:generateContent?key=${params.apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: params.prompt }] }],
+        generationConfig: { responseModalities: ['IMAGE'] }
+      })
+    }
   );
 
   if (!res.ok) {
@@ -70,9 +96,8 @@ export async function generateImageGemini(params: {
   const imagePart = parts.find(
     (p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData?.data
   );
-
   if (!imagePart?.inlineData) {
-    throw new Error('Gemini ไม่ได้ส่งรูปภาพกลับมา — ลองใช้ prompt อื่นหรือตรวจสอบ API key');
+    throw new Error('Gemini ไม่ได้ส่งรูปภาพกลับมา — ลองใช้ Imagen 3 แทน');
   }
 
   const { mimeType, data: base64Data } = imagePart.inlineData;
@@ -85,6 +110,31 @@ export async function generateImageGemini(params: {
   };
 }
 
+// ─── GOOGLE — auto-route by model ────────────────────────────────────────────
+export async function generateImageGemini(params: {
+  apiKey: string;
+  model: string;
+  prompt: string;
+  negativePrompt?: string;
+  aspectRatio?: string;
+}): Promise<ImageResult> {
+  const ar = params.aspectRatio ?? '1:1';
+
+  // Imagen 3 models use /predict and support aspectRatio natively
+  if (params.model.startsWith('imagen')) {
+    return generateImageImagen3({ ...params, aspectRatio: ar });
+  }
+
+  // Gemini Flash image model — 1:1 only, warn user
+  if (ar !== '1:1') {
+    throw new Error(
+      `โมเดล ${params.model} รองรับแค่ 1:1 เท่านั้น\n` +
+      `ถ้าต้องการ ${ar} กรุณาเลือกโมเดล "Imagen 3 — สร้างภาพ HD"`
+    );
+  }
+  return generateImageGeminiFlash(params);
+}
+
 // ─── GROK IMAGINE ────────────────────────────────────────────────────────────
 export async function generateImageGrok(params: {
   apiKey: string;
@@ -92,14 +142,13 @@ export async function generateImageGrok(params: {
   prompt: string;
   aspectRatio?: string;
 }): Promise<ImageResult> {
-  const size = (params.aspectRatio && GROK_SIZE[params.aspectRatio]) ? GROK_SIZE[params.aspectRatio] : '1024x1024';
+  const size = (params.aspectRatio && GROK_SIZE[params.aspectRatio])
+    ? GROK_SIZE[params.aspectRatio]
+    : '1024x1024';
 
   const res = await fetch(`${GROK_API_BASE}/images/generations`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`
-    },
+    headers: { 'content-type': 'application/json', Authorization: `Bearer ${params.apiKey}` },
     body: JSON.stringify({
       model: params.model,
       prompt: params.prompt,
@@ -143,3 +192,4 @@ export async function generateImage(providerCode: string, params: {
     default: throw new Error(`Provider "${providerCode}" ยังไม่รองรับการสร้างภาพ`);
   }
 }
+
