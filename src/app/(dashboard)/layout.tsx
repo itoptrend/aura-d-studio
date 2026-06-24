@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentTeamId } from '@/lib/session';
 import { SignOutButton } from '@/components/SignOutButton';
+import { BackButton } from '@/components/BackButton';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const teamId = await getCurrentTeamId();
@@ -27,7 +28,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
         <SignOutButton />
       </header>
-      <main className="max-w-3xl mx-auto px-6 py-10">{children}</main>
+      <main className="max-w-3xl mx-auto px-6 py-8">
+        {/* ปุ่มย้อนกลับ — ซ่อนบนหน้าหลัก */}
+        <div className="mb-5">
+          <BackButton />
+        </div>
+        {children}
+      </main>
     </div>
   );
 }
