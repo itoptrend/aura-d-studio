@@ -223,6 +223,7 @@ model Skill {
   promptTemplate String   @map("prompt_template") // system prompt template
   isOfficial     Boolean  @default(false) @map("is_official") // true = Aura-D platform skill (read-only)
   isActive       Boolean  @default(true) @map("is_active")
+  teamId         String?  @map("team_id") // null = official skill, set = custom team skill
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@unique([name, category], name: "name_category")
