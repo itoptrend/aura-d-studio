@@ -8,12 +8,29 @@ import { generateTextGemini } from '@/lib/ai/google';
 import { generateTextGrok } from '@/lib/ai/grok';
 
 const runSchema = z.object({
-  topic: z.string().min(3, 'กรอกหัวข้อบทความอย่างน้อย 3 ตัวอักษร'),
-  keyword: z.string().min(1, 'กรอกคีย์เวิร์ดหลัก'),
+  topic:        z.string().min(3, 'กรอกหัวข้อบทความอย่างน้อย 3 ตัวอักษร'),
+  keyword:      z.string().min(1, 'กรอกคีย์เวิร์ดหลัก'),
+  target:       z.string().optional().default(''),
+  extra:        z.string().optional().default(''),
+  length:       z.enum(['short', 'medium', 'long']).optional().default('medium'),
+  tone:         z.string().optional().default(''),
   credentialId: z.string().uuid(),
-  modelCode: z.string().min(1),
-  skillId: z.string().uuid().optional() // optional — uses default prompt if not provided
+  modelCode:    z.string().min(1),
+  skillId:      z.string().uuid().optional()
 });
+
+const LENGTH_WORDS: Record<string, string> = {
+  short:  '300-400 คำ',
+  medium: '600-800 คำ',
+  long:   '1000-1500 คำ'
+};
+const TONE_LABELS: Record<string, string> = {
+  friendly:     'เป็นกันเอง สบายๆ อ่านง่าย',
+  professional: 'มืออาชีพ น่าเชื่อถือ',
+  academic:     'วิชาการ มีแหล่งอ้างอิง',
+  fun:          'สนุกสนาน มีชีวิตชีวา',
+  persuasive:   'โน้มน้าว กระตุ้นการตัดสินใจ'
+};
 
 type GenerateParams = {
   apiKey: string;
@@ -50,21 +67,26 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'ข้อมูลไม่ถูกต้อง' }, { status: 400 });
   }
-  const { topic, keyword, credentialId, modelCode, skillId } = parsed.data;
+  const { topic, keyword, target, extra, length, tone, credentialId, modelCode, skillId } = parsed.data;
 
-  // Load skill prompt template if skillId provided, otherwise use default
+  // Build system prompt — skill takes priority
   let systemPrompt: string;
   if (skillId) {
     const skill = await prisma.skill.findUnique({ where: { id: skillId } });
     systemPrompt = skill?.promptTemplate ?? '';
   } else {
+    const wordCount = LENGTH_WORDS[length ?? 'medium'] ?? '600-800 คำ';
+    const toneDesc  = tone ? `โทนการเขียน: ${TONE_LABELS[tone] ?? tone}.` : '';
+    const targetDesc = target ? `กลุ่มเป้าหมาย: ${target}.` : '';
     systemPrompt = [
       'คุณเป็นนักเขียนคอนเทนต์ SEO ภาษาไทยมืออาชีพ',
-      `เขียนบทความให้เน้นคีย์เวิร์ดหลัก "${keyword}" อย่างเป็นธรรมชาติ ไม่ยัดคีย์เวิร์ดจนอ่านไม่ลื่น`,
-      'จัดโครงสร้างด้วย Heading ชัดเจน (H1 หนึ่งอัน, H2 หลายอัน) ความยาวรวมประมาณ 600-900 คำ',
-      'ตอบเป็นข้อความธรรมดา (plain text) เท่านั้น ห้ามใส่ HTML tag เช่น <h1> <p> <strong> ลงในคำตอบเด็ดขาด',
-      'ใช้บรรทัดว่างแบ่งหัวข้อ และนำหน้าหัวข้อด้วย ## แทน HTML tag'
-    ].join(' ');
+      `เขียนบทความให้เน้นคีย์เวิร์ดหลัก "${keyword}" อย่างเป็นธรรมชาติ ไม่ยัดคีย์เวิร์ด`,
+      `ความยาว: ${wordCount}`,
+      toneDesc,
+      targetDesc,
+      'จัดโครงสร้างด้วย Heading ชัดเจน (H1 หนึ่งอัน, H2 หลายอัน)',
+      'ตอบเป็น plain text ห้ามใส่ HTML tag ใช้ ## แทน heading'
+    ].filter(Boolean).join(' ');
   }
 
   const credential = await prisma.credential.findFirst({
@@ -95,7 +117,7 @@ export async function POST(req: Request) {
       status: 'running',
       credentialId: credential.id,
       resolvedModelId: model.id,
-      inputJson: { topic, keyword },
+      inputJson: { topic, keyword, target, extra, length, tone },
       startedAt: new Date()
     }
   });
@@ -103,20 +125,16 @@ export async function POST(req: Request) {
   try {
     const apiKey = decryptSecret(credential.encryptedKey, credential.encryptionIv);
 
-    const system = [
-      'คุณเป็นนักเขียนคอนเทนต์ SEO ภาษาไทยมืออาชีพ',
-      `เขียนบทความให้เน้นคีย์เวิร์ดหลัก "${keyword}" อย่างเป็นธรรมชาติ ไม่ยัดคีย์เวิร์ดจนอ่านไม่ลื่น`,
-      'จัดโครงสร้างด้วย Heading ชัดเจน (H1 หนึ่งอัน, H2 หลายอัน) ความยาวรวมประมาณ 600-900 คำ',
-      'ตอบเป็นข้อความธรรมดา (plain text) เท่านั้น ห้ามใส่ HTML tag เช่น <h1> <p> <strong> ลงในคำตอบเด็ดขาด',
-      'ใช้บรรทัดว่างแบ่งหัวข้อ และนำหน้าหัวข้อด้วย ## แทน HTML tag'
-    ].join(' ');
+    const promptParts = [`เขียนบทความ SEO หัวข้อ: ${topic}`, `คีย์เวิร์ดหลัก: ${keyword}`];
+    if (target) promptParts.push(`กลุ่มเป้าหมาย: ${target}`);
+    if (extra)  promptParts.push(`รายละเอียดเพิ่มเติม: ${extra}`);
 
     const result = await callAI(credential.providerCode, {
       apiKey,
       model: modelCode,
       system: systemPrompt,
-      prompt: `เขียนบทความ SEO หัวข้อ: ${topic} คีย์เวิร์ดหลัก: ${keyword}`,
-      maxTokens: 2048
+      prompt: promptParts.join(' | '),
+      maxTokens: length === 'long' ? 4096 : length === 'short' ? 1024 : 2048
     });
 
     const costCredit = estimateCreditCost(result.outputTokens);
