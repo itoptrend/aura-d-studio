@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist';
+import { CopyButton } from '@/components/CopyButton';
 
 interface Provider { code: string; displayName: string; models: { modelCode: string; displayName: string; capability: string }[]; }
 interface CredentialOption { id: string; providerCode: string; displayName: string; }
@@ -240,13 +241,14 @@ export default function SeoArticlePage() {
           <article className="whitespace-pre-line text-sm leading-relaxed bg-[#1C1B23] rounded-2xl p-5 border border-[#2C2A35]">
             {result.text}
           </article>
-          <div className="flex gap-3 mt-4">
-            <Link href={`/assets/${result.assetId}`} className="text-sm font-semibold text-gold">
+          <div className="flex gap-3 mt-4 flex-wrap">
+            <CopyButton text={result.text} label="คัดลอกบทความ" size="md" />
+            <Link href={`/assets/${result.assetId}`} className="text-sm font-semibold text-gold border border-gold/40 rounded-xl px-4 py-2 hover:bg-gold/10">
               ดู Generation Recipe →
             </Link>
             <a href={`data:text/plain;charset=utf-8,${encodeURIComponent(result.text)}`}
-              download={`${topic}.txt`} className="text-sm font-semibold text-[#9C9690]">
-              ดาวน์โหลด .txt
+              download={`${topic}.txt`} className="text-sm font-semibold text-[#9C9690] border border-[#2C2A35] rounded-xl px-4 py-2 hover:border-[#9C9690]">
+              ↓ .txt
             </a>
           </div>
         </div>

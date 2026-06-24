@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { CopyButton } from '@/components/CopyButton';
 
 interface RecipeStep {
   taskName: string;
@@ -77,15 +78,20 @@ export default function AssetDetailPage() {
           <h1 className="font-serif text-2xl mt-1">{asset.title}</h1>
         </div>
 
-        {/* ปุ่มถูกใจ + ดาวน์โหลด */}
+        {/* ปุ่มถูกใจ + คัดลอก + ดาวน์โหลด */}
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+          {/* Copy — เฉพาะ text document */}
+          {asset.contentText &&
+            !asset.contentText.startsWith('data:image') &&
+            !asset.contentText.startsWith('data:audio') && (
+              <CopyButton text={asset.contentText} label="คัดลอก" />
+          )}
           {asset.contentText && (
             <button
               onClick={download}
-              className="text-sm text-[#9C9690] hover:text-bone border border-[#2C2A35] hover:border-[#9C9690] rounded-xl px-3 py-1.5"
-              title="ดาวน์โหลด .txt"
+              className="text-xs text-[#9C9690] hover:text-bone border border-[#2C2A35] hover:border-[#9C9690] rounded-xl px-3 py-1.5"
             >
-              ดาวน์โหลด .txt
+              ↓ ดาวน์โหลด
             </button>
           )}
           <button
@@ -131,9 +137,14 @@ export default function AssetDetailPage() {
             <audio src={asset.contentText} controls className="w-full" style={{ accentColor: '#E4DECE' }} />
           </div>
         ) : (
-          <article className="whitespace-pre-line text-sm leading-relaxed bg-[#1C1B23] rounded-2xl p-5 border border-[#2C2A35]">
-            {asset.contentText}
-          </article>
+          <div>
+            <div className="flex justify-end mb-2">
+              <CopyButton text={asset.contentText} label="คัดลอกทั้งหมด" />
+            </div>
+            <article className="whitespace-pre-line text-sm leading-relaxed bg-[#1C1B23] rounded-2xl p-5 border border-[#2C2A35]">
+              {asset.contentText}
+            </article>
+          </div>
         )
       )}
 
