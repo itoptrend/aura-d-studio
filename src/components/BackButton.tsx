@@ -1,22 +1,24 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
-// หน้าที่ไม่แสดงปุ่มย้อนกลับ
-const NO_BACK_PATHS = ['/home', '/'];
+const HIDE_ON = ['/home', '/'];
 
+/**
+ * BackButton — แสดงปุ่มย้อนกลับทุกหน้า ยกเว้นหน้าแรก
+ * ใช้ router.back() กลับไปหน้าก่อนหน้าใน browser history
+ */
 export function BackButton() {
-  const pathname = usePathname();
   const router = useRouter();
+  const pathname = usePathname();
 
-  // ไม่แสดงบนหน้าหลัก
-  if (NO_BACK_PATHS.includes(pathname)) return null;
+  if (HIDE_ON.includes(pathname)) return null;
 
   return (
     <button
       onClick={() => router.back()}
       className="flex items-center gap-1.5 text-xs text-[#9C9690] hover:text-bone transition-colors group"
-      aria-label="ย้อนกลับ"
+      title="ย้อนกลับ"
     >
       <span className="text-base leading-none group-hover:-translate-x-0.5 transition-transform">←</span>
       <span>ย้อนกลับ</span>

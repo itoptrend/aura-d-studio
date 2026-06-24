@@ -26,15 +26,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Link href="/settings/connected-ai" className="hover:text-bone">Connected AI</Link>
           </nav>
         </div>
-        <SignOutButton />
-      </header>
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        {/* ปุ่มย้อนกลับ — ซ่อนบนหน้าหลัก */}
-        <div className="mb-5">
+        <div className="flex items-center gap-4">
           <BackButton />
+          <SignOutButton />
         </div>
-        {children}
-      </main>
+      </header>
+      <main className="max-w-3xl mx-auto px-6 py-10">{children}</main>
     </div>
   );
 }
