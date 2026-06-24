@@ -78,8 +78,18 @@ export default function AssetDetailPage() {
           <h1 className="font-serif text-2xl mt-1">{asset.title}</h1>
         </div>
 
-        {/* ปุ่มถูกใจ + คัดลอก + ดาวน์โหลด */}
+        {/* Copy + Download + Favorite */}
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+          {/* Duplicate to SEO (for document assets) */}
+          {asset.type === 'document' && asset.contentText &&
+            !asset.contentText.startsWith('data:') && (
+              <a
+                href={`/seo?duplicate=${encodeURIComponent(asset.title.slice(0, 60))}`}
+                className="text-xs text-[#9C9690] hover:text-gold border border-[#2C2A35] hover:border-gold/40 rounded-xl px-3 py-1.5 transition-colors"
+                title="ก๊อปไปสร้างใหม่ใน SEO">
+                ⎘ ก๊อป
+              </a>
+          )}
           {/* Copy — เฉพาะ text document */}
           {asset.contentText &&
             !asset.contentText.startsWith('data:image') &&

@@ -39,18 +39,30 @@ export default function SeoArticlePage() {
   const { values: form, setField, clearForm, saveForm, savedAt } = useFormPersist('seo', {
     topic: '', keyword: '', target: '', extra: '',
     length: 'medium', tone: '',
-    credentialId: '', modelCode: ''
+    credentialId: '', modelCode: '', characterId: ''
   });
-  const { topic, keyword, target, extra, length, tone, credentialId, modelCode } = form;
+  const { topic, keyword, target, extra, length, tone, credentialId, modelCode, characterId } = form;
+
+  const [characters, setCharacters] = useState<{ id: string; name: string; avatarEmoji: string }[]>([]);
 
   useEffect(() => {
     Promise.all([
       fetch('/api/ai-providers?capability=text').then((r) => r.json()),
       fetch('/api/credentials').then((r) => r.json()),
-    ]).then(([prov, cred]) => {
+      fetch('/api/characters').then((r) => r.json()),
+    ]).then(([prov, cred, char]) => {
       setProviders(prov.providers ?? []);
       setCredentials(cred.credentials ?? []);
+      setCharacters(char.characters ?? []);
     });
+
+    // Pre-fill from duplicate
+    const dup = searchParams.get('duplicate');
+    if (dup) setField('topic', dup);
+
+    // Pre-select character from URL param
+    const charId = searchParams.get('characterId');
+    if (charId) setField('characterId', charId);
 
     const skillId = searchParams.get('skillId');
     if (skillId) {
@@ -59,7 +71,7 @@ export default function SeoArticlePage() {
         if (skill) setSelectedSkill(skill);
       });
     }
-  }, [searchParams]);
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedCredential = credentials.find((c) => c.id === credentialId);
   const selectedProvider = providers.find((p) => p.code === selectedCredential?.providerCode);
@@ -73,7 +85,7 @@ export default function SeoArticlePage() {
     const res = await fetch('/api/workflows/seo-article/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ topic, keyword, target, extra, length, tone, credentialId, modelCode, skillId: selectedSkill?.id })
+      body: JSON.stringify({ topic, keyword, target, extra, length, tone, credentialId, modelCode, skillId: selectedSkill?.id, characterId: characterId || undefined })
     });
     const data = await res.json();
     setLoading(false);
@@ -223,6 +235,22 @@ export default function SeoArticlePage() {
           <Link href="/skills" className="inline-block text-xs text-[#9C9690] hover:text-gold border border-[#2C2A35] rounded-xl px-3 py-2 hover:border-gold/40 transition-colors">
             ⚡ เลือก Skill เพิ่มประสิทธิภาพ →
           </Link>
+        )}
+
+        {/* Character selector */}
+        {characters.length > 0 && (
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1.5">
+              ตัวละคร / Brand Voice <span className="text-[10px] opacity-60">(optional)</span>
+            </label>
+            <select value={characterId} onChange={(e) => setField('characterId', e.target.value)}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm">
+              <option value="">ไม่ใช้ตัวละคร</option>
+              {characters.map((c) => (
+                <option key={c.id} value={c.id}>{c.avatarEmoji} {c.name}</option>
+              ))}
+            </select>
+          </div>
         )}
 
         {error && <p className="text-sm text-[#C9716A]">{error}</p>}

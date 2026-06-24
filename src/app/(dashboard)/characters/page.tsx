@@ -164,6 +164,25 @@ export default function CharactersPage() {
           {c.tone && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">น้ำเสียง</p><p className="text-sm leading-relaxed">{c.tone}</p></div>}
           {c.backstory && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">ประวัติ</p><p className="text-sm leading-relaxed">{c.backstory}</p></div>}
           {c.examples && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">ตัวอย่างประโยค</p><p className="text-sm leading-relaxed text-[#9C9690] italic">{c.examples}</p></div>}
+
+          {/* Quick create content buttons */}
+          <div className="pt-2 border-t border-[#2C2A35]">
+            <p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-2">สร้างเนื้อหาด้วย {c.name}</p>
+            <div className="flex gap-2 flex-wrap">
+              <a href={`/seo?characterId=${c.id}`}
+                className="text-xs text-bone border border-[#2C2A35] rounded-xl px-3 py-1.5 hover:border-gold hover:text-gold transition-colors">
+                ✍️ SEO Article
+              </a>
+              <a href={`/social?characterId=${c.id}`}
+                className="text-xs text-bone border border-[#2C2A35] rounded-xl px-3 py-1.5 hover:border-gold hover:text-gold transition-colors">
+                📱 Social Content
+              </a>
+              <a href={`/video?characterId=${c.id}`}
+                className="text-xs text-bone border border-[#2C2A35] rounded-xl px-3 py-1.5 hover:border-gold hover:text-gold transition-colors">
+                🎬 Video/Ad
+              </a>
+            </div>
+          </div>
         </div>
       )}
     </div>

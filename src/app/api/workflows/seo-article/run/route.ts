@@ -16,7 +16,8 @@ const runSchema = z.object({
   tone:         z.string().optional().default(''),
   credentialId: z.string().uuid(),
   modelCode:    z.string().min(1),
-  skillId:      z.string().uuid().optional()
+  skillId:      z.string().uuid().optional(),
+  characterId:  z.string().uuid().optional()
 });
 
 const LENGTH_WORDS: Record<string, string> = {
@@ -67,9 +68,9 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.errors[0]?.message ?? 'ข้อมูลไม่ถูกต้อง' }, { status: 400 });
   }
-  const { topic, keyword, target, extra, length, tone, credentialId, modelCode, skillId } = parsed.data;
+  const { topic, keyword, target, extra, length, tone, credentialId, modelCode, skillId, characterId } = parsed.data;
 
-  // Build system prompt — skill takes priority
+  // Build system prompt — skill takes priority over character + default
   let systemPrompt: string;
   if (skillId) {
     const skill = await prisma.skill.findUnique({ where: { id: skillId } });
@@ -87,6 +88,15 @@ export async function POST(req: Request) {
       'จัดโครงสร้างด้วย Heading ชัดเจน (H1 หนึ่งอัน, H2 หลายอัน)',
       'ตอบเป็น plain text ห้ามใส่ HTML tag ใช้ ## แทน heading'
     ].filter(Boolean).join(' ');
+  }
+
+  // Append character context if provided
+  if (characterId) {
+    const character = await prisma.character.findUnique({ where: { id: characterId } });
+    if (character) {
+      systemPrompt += ` เขียนในฐานะตัวละคร "${character.name}" (${character.avatarEmoji}): บุคลิก — ${character.personality}. น้ำเสียง — ${character.tone}.`;
+      if (character.examples) systemPrompt += ` ตัวอย่างประโยคที่ใช้: ${character.examples}`;
+    }
   }
 
   const credential = await prisma.credential.findFirst({
