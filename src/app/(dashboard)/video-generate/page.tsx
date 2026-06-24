@@ -52,7 +52,7 @@ const POLL_INTERVAL_MS = 5_000
 // ---------------------------------------------------------------------------
 
 export default function VideoGeneratePage() {
-  const { showToast } = useToast()
+  const { success, error: toastError, info } = useToast()
 
   // — Form state (persisted)
   const { values, setField, clearForm, savedAt } = useFormPersist('video-generate-form', {
@@ -84,7 +84,7 @@ export default function VideoGeneratePage() {
           setField('credentialId', active[0].id)
         }
       })
-      .catch(() => showToast('โหลด API Keys ล้มเหลว', 'error'))
+      .catch(() => toastError('โหลด API Keys ล้มเหลว'))
       .finally(() => setLoadingCreds(false))
   }, [])
 
@@ -106,30 +106,30 @@ export default function VideoGeneratePage() {
 
         if (data.status === 'succeeded') {
           stopPolling()
-          showToast('สร้างวิดีโอสำเร็จแล้ว! 🎉', 'success')
+          success('สร้างวิดีโอสำเร็จแล้ว! 🎉')
         } else if (data.status === 'failed') {
           stopPolling()
-          showToast(data.errorMessage ?? 'สร้างวิดีโอไม่สำเร็จ', 'error')
+          toastError(data.errorMessage ?? 'สร้างวิดีโอไม่สำเร็จ')
         } else if (data.status === 'stalled') {
           stopPolling()
-          showToast('งานค้างนานเกินไป — กรุณาลองใหม่อีกครั้ง', 'error')
+          toastError('งานค้างนานเกินไป — กรุณาลองใหม่อีกครั้ง')
         }
       } catch {
         // network error ระหว่าง poll — ไม่หยุด poll, รอรอบหน้า
       }
     }, POLL_INTERVAL_MS)
-  }, [stopPolling, showToast])
+  }, [stopPolling, success, toastError])
 
   useEffect(() => () => stopPolling(), [stopPolling])
 
   // — Submit
   async function handleSubmit() {
     if (!values.prompt.trim()) {
-      showToast('กรุณาใส่ prompt', 'error')
+      toastError('กรุณาใส่ prompt')
       return
     }
     if (!values.credentialId) {
-      showToast('กรุณาเลือก Google API Key', 'error')
+      toastError('กรุณาเลือก Google API Key')
       return
     }
 
@@ -154,16 +154,16 @@ export default function VideoGeneratePage() {
       const data = await res.json()
 
       if (!res.ok) {
-        showToast(data.error ?? 'เกิดข้อผิดพลาด', 'error')
+        toastError(data.error ?? 'เกิดข้อผิดพลาด')
         return
       }
 
       setJobId(data.jobId)
       setJobState({ id: data.jobId, status: 'pending', progress: 0, attempts: 0, maxAttempts: 3 })
       startPolling(data.jobId)
-      showToast('ส่งงานสร้างวิดีโอแล้ว — กำลังประมวลผล…', 'info')
+      info('ส่งงานสร้างวิดีโอแล้ว — กำลังประมวลผล…')
     } catch {
-      showToast('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้', 'error')
+      toastError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้')
     }
   }
 
@@ -173,7 +173,7 @@ export default function VideoGeneratePage() {
     stopPolling()
     // mark cancelled ใน DB (future: DELETE /api/jobs/[id])
     setJobState(prev => prev ? { ...prev, status: 'cancelled' } : null)
-    showToast('ยกเลิกงานแล้ว', 'info')
+    info('ยกเลิกงานแล้ว')
   }
 
   const isRunning = jobState?.status === 'pending' || jobState?.status === 'running'
@@ -327,7 +327,7 @@ export default function VideoGeneratePage() {
           </button>
           {!isRunning && (
             <button
-              onClick={() => { clearForm(); showToast('ล้างข้อมูลแล้ว', 'info') }}
+              onClick={() => { clearForm(); info('ล้างข้อมูลแล้ว') }}
               className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700
                          text-gray-600 dark:text-gray-400 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
