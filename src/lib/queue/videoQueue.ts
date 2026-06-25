@@ -8,7 +8,7 @@ import { Queue, QueueEvents } from 'bullmq'
 export interface VideoJobPayload {
   videoJobId:      string
   teamId:          string
-  provider:        'google' | 'kling' | 'runway'
+  provider: 'google' | 'kling' | 'xai' | 'runway'
   modelCode:       string
   prompt:          string
   negativePrompt?: string
