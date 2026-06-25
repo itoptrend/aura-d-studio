@@ -42,14 +42,14 @@ export interface VideoJobPayload {
 // Queue singleton (lazy-init เพื่อกัน cold-start crash ถ้า Redis ยังไม่พร้อม)
 // ---------------------------------------------------------------------------
 
-let _queue: Queue<VideoJobPayload> | null = null
+let _queue: Queue<VideoJobPayload, void, string> | null = null
 
-export function getVideoQueue(): Queue<VideoJobPayload> {
+export function getVideoQueue(): Queue<VideoJobPayload, void, string> {
   if (_queue) return _queue
 
   const connection = getRedisConnection()
 
-  _queue = new Queue<VideoJobPayload>('video-jobs', {
+  _queue = new Queue<VideoJobPayload, void, string>('video-jobs', {
     connection,
     defaultJobOptions: {
       attempts:    3,
