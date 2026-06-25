@@ -144,7 +144,7 @@ export default function VideoGeneratePage() {
           prompt:         values.prompt.trim(),
           negativePrompt: values.negativePrompt?.trim() || undefined,
           aspectRatio:    values.aspectRatio,
-          durationSecs:   Number(values.durationSecs),,
+          durationSecs:   Number(values.durationSecs),
           credentialId:   values.credentialId,
           provider:       'google',
           modelCode:      'veo-3.0-generate-preview',
