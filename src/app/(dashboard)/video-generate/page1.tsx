@@ -53,11 +53,6 @@ const DURATION_OPTIONS = [
 
 const POLL_INTERVAL_MS = 5_000
 
-// providers ที่มีข้อจำกัด — แสดง warning ใต้ dropdown
-const PROVIDER_WARNINGS: Record<string, string> = {
-  google: '⚠️ Veo 3.1 ต้องใช้ Vertex AI (Google Cloud) — ยังไม่รองรับผ่าน AI Studio Key ปกติ',
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -90,25 +85,21 @@ export default function VideoGeneratePage() {
       const allCreds = (credData.credentials ?? []) as Credential[]
       const allProvs = (provData.providers   ?? []) as Provider[]
       setProviders(allProvs)
-
       // กรองเฉพาะ credential ที่ provider รองรับ video
       const videoCreds = allCreds.filter(
         c => c.status === 'active' && allProvs.some(p => p.code === c.providerCode)
       )
       setCredentials(videoCreds)
-
-      // auto-select ถ้ามีแค่ตัวเดียว
       if (videoCreds.length === 1 && !values.credentialId) {
         setField('credentialId', videoCreds[0].id)
       }
     }).catch(() => toastError('โหลด API Keys ล้มเหลว'))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   // — หา provider ของ credential ที่เลือก
   const selectedCredential = credentials.find(c => c.id === values.credentialId)
   const selectedProvider   = providers.find(p => p.code === selectedCredential?.providerCode)
   const videoModels        = selectedProvider?.models.filter(m => m.capability === 'video') ?? []
-  const providerWarning    = selectedCredential ? PROVIDER_WARNINGS[selectedCredential.providerCode] : undefined
 
   // — Polling
   const stopPolling = useCallback(() => {
@@ -151,7 +142,7 @@ export default function VideoGeneratePage() {
           aspectRatio:    values.aspectRatio,
           durationSecs:   Number(values.durationSecs),
           credentialId:   values.credentialId,
-          provider:       selectedCredential?.providerCode ?? '',
+          provider:       selectedCredential?.providerCode ?? 'google',
           modelCode:      values.modelCode,
         }),
       })
@@ -166,13 +157,16 @@ export default function VideoGeneratePage() {
     }
   }
 
+
   // — Cancel / Clear
   async function handleCancel() {
+    // งาน running — แจ้งเตือนและรอต่อ ไม่ยกเลิก
     if (jobState?.status === 'running') {
       info('กำลังสร้างวิดีโออยู่ กรุณารอสักครู่ — ระบบจะแจ้งเมื่อเสร็จ')
       return
     }
     try {
+      // ยกเลิก pending jobs ทั้งหมดของ team (รวมถึง jobId ปัจจุบัน)
       await fetch('/api/jobs/cancel-all', { method: 'DELETE' })
       stopPolling()
       setJobState(null)
@@ -196,7 +190,7 @@ export default function VideoGeneratePage() {
       <div className="flex items-center justify-between mb-1">
         <div>
           <h1 className="font-serif text-2xl">สร้างวิดีโอ AI</h1>
-          <p className="text-sm text-[#9C9690] mt-1">สร้างวิดีโอด้วย Kling AI และ xAI Grok Imagine Video</p>
+          <p className="text-sm text-[#9C9690] mt-1">สร้างวิดีโอด้วย Google Veo 3.1 และ Grok Imagine Video</p>
         </div>
         <div className="flex items-center gap-2">
           {savedAt && <span className="text-[10px] text-[#9C9690]">💾 {formatSavedAt(savedAt)}</span>}
@@ -214,8 +208,8 @@ export default function VideoGeneratePage() {
       {credentials.length === 0 && (
         <div className="mt-4 p-4 rounded-2xl border border-[#2C2A35] text-sm text-[#9C9690]">
           ยังไม่มี API Key ที่รองรับการสร้างวิดีโอ — ต้องใช้{' '}
-          <strong className="text-bone">Kling AI</strong> หรือ{' '}
-          <strong className="text-bone">xAI Grok</strong>{' '}
+          <strong className="text-bone">Google Gemini</strong> (Veo 3.1) หรือ{' '}
+          <strong className="text-bone">xAI Grok</strong> (Grok Imagine Video){' '}
           <Link href="/settings/connected-ai" className="text-gold font-semibold">ไปที่ Connected AI →</Link>
         </div>
       )}
@@ -307,7 +301,7 @@ export default function VideoGeneratePage() {
           </div>
         </div>
 
-        {/* AI + Model */}
+        {/* AI + Model — grid เหมือนหน้า image */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">AI ที่ใช้</label>
@@ -316,7 +310,7 @@ export default function VideoGeneratePage() {
               value={values.credentialId}
               onChange={e => {
                 setField('credentialId', e.target.value)
-                setField('modelCode', '') // reset model เมื่อเปลี่ยน AI
+                setField('modelCode', '')
               }}
               disabled={isRunning}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50"
@@ -347,14 +341,7 @@ export default function VideoGeneratePage() {
           )}
         </div>
 
-        {/* Provider warning (เช่น Veo ต้องใช้ Vertex AI) */}
-        {providerWarning && (
-          <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
-            <p className="text-xs text-amber-400">{providerWarning}</p>
-          </div>
-        )}
-
-        {/* Submit + Cancel */}
+        {/* Submit + Clear — แสดงตลอดเวลา */}
         <div className="flex gap-3">
           <button
             type="submit"
@@ -380,7 +367,7 @@ export default function VideoGeneratePage() {
 
         {isRunning && (
           <p className="text-[10px] text-[#9C9690] text-center">
-            กำลังสร้างวิดีโออยู่ — ระบบจะแจ้งเมื่อเสร็จอัตโนมัติ
+            กำลังสร้างวิดีโออยู่ — ระบบจะแจ้งเมื่อเสร็จอัตโนมัติ หรือกด ⏸ รออยู่ เพื่อดูสถานะ
           </p>
         )}
 

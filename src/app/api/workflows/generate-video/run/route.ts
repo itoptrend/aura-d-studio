@@ -1,62 +1,90 @@
 // src/app/api/workflows/generate-video/run/route.ts
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { getCurrentTeamId } from '@/lib/session'
-import { getVideoQueue } from '@/lib/queue/videoQueue'
+// POST — รับ form data จาก /video-generate → สร้าง VideoJob ใน DB → enqueue BullMQ → return jobId
 
-const MAX_ACTIVE_JOBS = 3
+import { NextResponse } from 'next/server'
+import { prisma }        from '@/lib/db'
+import { getCurrentTeamId } from '@/lib/session'
+import { getVideoQueue }    from '@/lib/queue/videoQueue'
+import type { VideoJobPayload } from '@/lib/queue/videoQueue'
+
+// ---------------------------------------------------------------------------
+// POST
+// ---------------------------------------------------------------------------
 
 export async function POST(req: Request): Promise<NextResponse> {
   const teamId = await getCurrentTeamId()
   if (!teamId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  let body: Record<string, unknown>
-  try { body = await req.json() }
-  catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
-
-  const {
-    prompt, negativePrompt, durationSecs = 8, aspectRatio = '16:9',
-    provider = 'google', modelCode = 'veo-3.0-generate-preview', credentialId,
-  } = body as {
-    prompt: string; negativePrompt?: string; durationSecs?: number
-    aspectRatio?: string; provider?: string; modelCode?: string; credentialId: string
+  // — Parse body
+  let body: {
+    prompt:          string
+    negativePrompt?: string
+    aspectRatio:     string
+    durationSecs:    number
+    credentialId:    string
+    provider:        string
+    modelCode:       string
   }
 
-  if (!prompt?.trim())  return NextResponse.json({ error: 'กรุณาใส่ prompt' }, { status: 400 })
-  if (!credentialId)    return NextResponse.json({ error: 'กรุณาเลือก AI Key' }, { status: 400 })
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
 
-  // Rate limit
-  const activeCount = await prisma.videoJob.count({
-    where: { teamId, status: { in: ['pending', 'running'] } },
+  const { prompt, negativePrompt, aspectRatio, durationSecs, credentialId, provider, modelCode } = body
+
+  // — Validation
+  if (!prompt?.trim())    return NextResponse.json({ error: 'กรุณาใส่ prompt'   }, { status: 400 })
+  if (!credentialId)      return NextResponse.json({ error: 'กรุณาเลือก AI Key' }, { status: 400 })
+  if (!modelCode?.trim()) return NextResponse.json({ error: 'กรุณาเลือกโมเดล'  }, { status: 400 })
+  if (!provider?.trim())  return NextResponse.json({ error: 'ไม่ระบุ provider'  }, { status: 400 })
+
+  // — ตรวจ credential เป็นของ team นี้จริงๆ และ status = active
+  const credential = await prisma.credential.findFirst({
+    where: { id: credentialId, teamId, status: 'active' },
+    select: { id: true, providerCode: true },
   })
-  if (activeCount >= MAX_ACTIVE_JOBS) {
+  if (!credential) {
     return NextResponse.json(
-      { error: `มีงานวิดีโอรออยู่แล้ว ${activeCount} งาน — กรุณารอให้เสร็จก่อน` },
-      { status: 429 }
+      { error: 'ไม่พบ API Key หรือ Key ไม่ active — กรุณาตรวจสอบที่ Connected AI' },
+      { status: 404 }
     )
   }
 
-  // ตรวจ credential เป็นของ team จริง
-  const credential = await prisma.credential.findFirst({ where: { id: credentialId, teamId } })
-  if (!credential) return NextResponse.json({ error: 'ไม่พบ API Key ที่ระบุ' }, { status: 404 })
-
-  // สร้าง VideoJob
+  // — สร้าง VideoJob record ใน DB
   const videoJob = await prisma.videoJob.create({
     data: {
-      teamId, provider: provider as any, modelCode,
-      prompt: prompt.trim(), negativePrompt: negativePrompt?.trim() || null,
-      durationSecs: Number(durationSecs), aspectRatio, credentialId, status: 'pending',
+      teamId,
+      provider:       credential.providerCode,   // ใช้จาก DB เสมอ (ปลอดภัยกว่า client)
+      modelCode,
+      prompt:         prompt.trim(),
+      negativePrompt: negativePrompt?.trim() || null,
+      aspectRatio:    aspectRatio ?? '16:9',
+      durationSecs:   Number(durationSecs) || 8,
+      credentialId,
+      status:         'pending',
     },
   })
 
-  // Enqueue
+  // — Enqueue งานเข้า BullMQ
   const queue = getVideoQueue()
-  await queue.add('generate-video', {
-    videoJobId: videoJob.id, teamId,
-    provider: provider as any, modelCode,
-    prompt: prompt.trim(), negativePrompt: negativePrompt?.trim(),
-    durationSecs: Number(durationSecs), aspectRatio, credentialId,
-  }, { jobId: videoJob.id })
 
-  return NextResponse.json({ jobId: videoJob.id, status: 'pending' }, { status: 202 })
+  const payload: VideoJobPayload = {
+    videoJobId:     videoJob.id,
+    teamId,
+    provider:       credential.providerCode as VideoJobPayload['provider'],
+    modelCode,
+    prompt:         prompt.trim(),
+    negativePrompt: negativePrompt?.trim() || undefined,
+    aspectRatio:    aspectRatio ?? '16:9',
+    durationSecs:   Number(durationSecs) || 8,
+    credentialId,
+  }
+
+  await queue.add('generate-video', payload, {
+    jobId: videoJob.id,   // ใช้ videoJobId เป็น BullMQ job ID ด้วย
+  })
+
+  return NextResponse.json({ jobId: videoJob.id })
 }
