@@ -1,33 +1,34 @@
 // src/app/(dashboard)/video-generate/page.tsx
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import Link from 'next/link'
 import { useToast } from '@/components/Toast'
-import { useFormPersist } from '@/lib/useFormPersist'
+import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface Credential {
-  id:          string
-  displayName: string
+  id:           string
+  displayName:  string
   providerCode: string
-  status:      string
+  status:       string
 }
 
 type JobStatus = 'idle' | 'pending' | 'running' | 'succeeded' | 'failed' | 'stalled' | 'cancelled'
 
 interface JobPollResponse {
-  id:           string
-  status:       JobStatus
-  progress:     number
-  blobUrl?:     string
-  assetId?:     string
+  id:            string
+  status:        JobStatus
+  progress:      number
+  blobUrl?:      string
+  assetId?:      string
   errorMessage?: string
-  errorCode?:   string
-  attempts:     number
-  maxAttempts:  number
+  errorCode?:    string
+  attempts:      number
+  maxAttempts:   number
 }
 
 // ---------------------------------------------------------------------------
@@ -35,9 +36,9 @@ interface JobPollResponse {
 // ---------------------------------------------------------------------------
 
 const ASPECT_RATIOS = [
-  { value: '16:9', label: '16:9', icon: '▬', desc: 'Landscape' },
-  { value: '9:16', label: '9:16', icon: '▮', desc: 'Portrait' },
-  { value: '1:1',  label: '1:1',  icon: '■', desc: 'Square'    },
+  { value: '16:9', label: '16:9', w: 40, h: 23, desc: 'Landscape — YouTube / Banner' },
+  { value: '9:16', label: '9:16', w: 23, h: 40, desc: 'Portrait — TikTok / Reels' },
+  { value: '1:1',  label: '1:1',  w: 36, h: 36, desc: 'Square — โซเชียลทั่วไป' },
 ]
 
 const DURATION_OPTIONS = [
@@ -54,7 +55,6 @@ const POLL_INTERVAL_MS = 5_000
 export default function VideoGeneratePage() {
   const { success, error: toastError, info } = useToast()
 
-  // — Form state (persisted)
   const { values, setField, clearForm, savedAt } = useFormPersist('video-generate-form', {
     prompt:         '',
     negativePrompt: '',
@@ -63,23 +63,22 @@ export default function VideoGeneratePage() {
     credentialId:   '',
   })
 
-  // — Credentials list
-  const [credentials, setCredentials] = useState<Credential[]>([])
+  const [credentials, setCredentials]   = useState<Credential[]>([])
   const [loadingCreds, setLoadingCreds] = useState(true)
 
-  // — Job state
   const [jobId,    setJobId]    = useState<string | null>(null)
   const [jobState, setJobState] = useState<JobPollResponse | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // — Load credentials (Google only for Phase 3)
+  // — Load credentials
   useEffect(() => {
     fetch('/api/credentials')
       .then(r => r.json())
       .then((data: { credentials: Credential[] }) => {
-        const active = data.credentials.filter(c => c.status === 'active' && c.providerCode === 'google')
+        const active = (data.credentials ?? []).filter(
+          c => c.status === 'active' && c.providerCode === 'google'
+        )
         setCredentials(active)
-        // auto-select ถ้ามีแค่ตัวเดียว
         if (active.length === 1 && !values.credentialId) {
           setField('credentialId', active[0].id)
         }
@@ -90,10 +89,7 @@ export default function VideoGeneratePage() {
 
   // — Polling
   const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current)
-      pollRef.current = null
-    }
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }, [])
 
   const startPolling = useCallback((id: string) => {
@@ -103,35 +99,20 @@ export default function VideoGeneratePage() {
         const res  = await fetch(`/api/jobs/${id}`)
         const data: JobPollResponse = await res.json()
         setJobState(data)
-
-        if (data.status === 'succeeded') {
-          stopPolling()
-          success('สร้างวิดีโอสำเร็จแล้ว! 🎉')
-        } else if (data.status === 'failed') {
-          stopPolling()
-          toastError(data.errorMessage ?? 'สร้างวิดีโอไม่สำเร็จ')
-        } else if (data.status === 'stalled') {
-          stopPolling()
-          toastError('งานค้างนานเกินไป — กรุณาลองใหม่อีกครั้ง')
-        }
-      } catch {
-        // network error ระหว่าง poll — ไม่หยุด poll, รอรอบหน้า
-      }
+        if (data.status === 'succeeded') { stopPolling(); success('สร้างวิดีโอสำเร็จแล้ว! 🎉') }
+        else if (data.status === 'failed')  { stopPolling(); toastError(data.errorMessage ?? 'สร้างวิดีโอไม่สำเร็จ') }
+        else if (data.status === 'stalled') { stopPolling(); toastError('งานค้างนานเกินไป — กรุณาลองใหม่') }
+      } catch { /* network error — รอรอบหน้า */ }
     }, POLL_INTERVAL_MS)
   }, [stopPolling, success, toastError])
 
   useEffect(() => () => stopPolling(), [stopPolling])
 
   // — Submit
-  async function handleSubmit() {
-    if (!values.prompt.trim()) {
-      toastError('กรุณาใส่ prompt')
-      return
-    }
-    if (!values.credentialId) {
-      toastError('กรุณาเลือก Google API Key')
-      return
-    }
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!values.prompt.trim()) { toastError('กรุณาใส่ prompt'); return }
+    if (!values.credentialId)  { toastError('กรุณาเลือก AI Key'); return }
 
     setJobId(null)
     setJobState(null)
@@ -150,14 +131,8 @@ export default function VideoGeneratePage() {
           modelCode:      'veo-3.0-generate-preview',
         }),
       })
-
       const data = await res.json()
-
-      if (!res.ok) {
-        toastError(data.error ?? 'เกิดข้อผิดพลาด')
-        return
-      }
-
+      if (!res.ok) { toastError(data.error ?? 'เกิดข้อผิดพลาด'); return }
       setJobId(data.jobId)
       setJobState({ id: data.jobId, status: 'pending', progress: 0, attempts: 0, maxAttempts: 3 })
       startPolling(data.jobId)
@@ -167,15 +142,6 @@ export default function VideoGeneratePage() {
     }
   }
 
-  // — Cancel
-  async function handleCancel() {
-    if (!jobId) return
-    stopPolling()
-    // mark cancelled ใน DB (future: DELETE /api/jobs/[id])
-    setJobState(prev => prev ? { ...prev, status: 'cancelled' } : null)
-    info('ยกเลิกงานแล้ว')
-  }
-
   const isRunning = jobState?.status === 'pending' || jobState?.status === 'running'
 
   // ---------------------------------------------------------------------------
@@ -183,94 +149,113 @@ export default function VideoGeneratePage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
-
+    <div>
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-          สร้างวิดีโอด้วย AI
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          ขับเคลื่อนด้วย Google Veo 3.1 — ใช้เวลาประมาณ 2–4 นาทีต่อวิดีโอ
-        </p>
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <h1 className="font-serif text-2xl">สร้างวิดีโอ AI</h1>
+          <p className="text-sm text-[#9C9690] mt-1">ขับเคลื่อนด้วย Google Veo 3.1 — ใช้เวลาประมาณ 2–4 นาทีต่อวิดีโอ</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {savedAt && <span className="text-[10px] text-[#9C9690]">💾 {formatSavedAt(savedAt)}</span>}
+          {values.prompt && !isRunning && (
+            <button
+              onClick={() => { clearForm(); setJobState(null) }}
+              className="text-xs text-[#9C9690] border border-[#2C2A35] rounded-lg px-2.5 py-1 hover:border-[#C9716A] hover:text-[#C9716A]">
+              ล้างข้อมูล
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Form card */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-6">
+      {/* No credentials warning */}
+      {!loadingCreds && credentials.length === 0 && (
+        <div className="mt-4 p-4 rounded-2xl border border-[#2C2A35] text-sm text-[#9C9690]">
+          ยังไม่มี Google API Key — ต้องใช้ <strong className="text-bone">Google Gemini</strong> สำหรับ Veo 3.1{' '}
+          <Link href="/settings/connected-ai" className="text-gold font-semibold">ไปที่ Connected AI →</Link>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="mt-6 space-y-5 max-w-xl">
 
         {/* Prompt */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Prompt <span className="text-red-500">*</span>
+        <div>
+          <label className="block text-xs text-[#9C9690] mb-1.5">
+            Prompt — บอกว่าต้องการวิดีโออะไร
           </label>
           <textarea
+            required
             rows={4}
-            placeholder="เช่น: ผีเสื้อบินอยู่เหนือทุ่งดอกไม้ท่ามกลางแสงทองยามเช้า ภาพระยะใกล้ชัดเจน"
             value={values.prompt}
             onChange={e => setField('prompt', e.target.value)}
             disabled={isRunning}
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900
-                       text-gray-900 dark:text-white px-3 py-2 text-sm resize-none
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+            placeholder="เช่น: ผีเสื้อบินอยู่เหนือทุ่งดอกไม้ท่ามกลางแสงทองยามเช้า ภาพระยะใกล้ชัดเจน"
+            className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[100px] resize-none disabled:opacity-50"
           />
-          <p className="text-xs text-gray-400">{values.prompt.length} / 1,000 ตัวอักษร</p>
+          <p className="text-[10px] text-[#9C9690] mt-1">{values.prompt.length} / 1,000 ตัวอักษร</p>
         </div>
 
         {/* Negative Prompt */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Negative Prompt
-            <span className="ml-1.5 text-xs font-normal text-gray-400">(ไม่บังคับ)</span>
+        <div>
+          <label className="block text-xs text-[#9C9690] mb-1.5">
+            Negative Prompt <span className="text-[10px] opacity-60">(ไม่บังคับ) — สิ่งที่ไม่ต้องการในวิดีโอ</span>
           </label>
-          <textarea
-            rows={2}
-            placeholder="เช่น: ข้อความ, โลโก้, ภาพเบลอ, คุณภาพต่ำ"
+          <input
             value={values.negativePrompt ?? ''}
             onChange={e => setField('negativePrompt', e.target.value)}
             disabled={isRunning}
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900
-                       text-gray-900 dark:text-white px-3 py-2 text-sm resize-none
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+            placeholder="เช่น: ข้อความ, โลโก้, ภาพเบลอ, คุณภาพต่ำ"
+            className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50"
           />
         </div>
 
         {/* Aspect Ratio */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">สัดส่วน</label>
-          <div className="flex gap-3">
+        <div>
+          <label className="block text-xs text-[#9C9690] mb-2">สัดส่วนวิดีโอ</label>
+          <div className="flex items-end gap-3">
             {ASPECT_RATIOS.map(ar => (
               <button
                 key={ar.value}
+                type="button"
                 onClick={() => setField('aspectRatio', ar.value)}
                 disabled={isRunning}
-                className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-lg border text-sm transition-colors
-                  ${values.aspectRatio === ar.value
-                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
-                  } disabled:opacity-50`}
+                title={ar.desc}
+                className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl border transition-colors disabled:opacity-50 ${
+                  values.aspectRatio === ar.value
+                    ? 'border-gold bg-gold/10'
+                    : 'border-[#2C2A35] hover:border-[#9C9690]'
+                }`}
               >
-                <span className="text-xl leading-none">{ar.icon}</span>
-                <span className="font-medium">{ar.label}</span>
-                <span className="text-xs text-gray-400">{ar.desc}</span>
+                <div
+                  className={`rounded border-2 ${values.aspectRatio === ar.value ? 'border-gold bg-gold/20' : 'border-[#9C9690]'}`}
+                  style={{ width: ar.w, height: ar.h }}
+                />
+                <span className={`text-[10px] font-mono font-bold ${values.aspectRatio === ar.value ? 'text-gold' : 'text-[#9C9690]'}`}>
+                  {ar.label}
+                </span>
               </button>
             ))}
           </div>
+          <p className="text-[10px] text-[#9C9690] mt-1.5">
+            {ASPECT_RATIOS.find(r => r.value === values.aspectRatio)?.desc ?? ''}
+          </p>
         </div>
 
         {/* Duration */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">ความยาว</label>
+        <div>
+          <label className="block text-xs text-[#9C9690] mb-2">ความยาว</label>
           <div className="flex gap-3">
             {DURATION_OPTIONS.map(d => (
               <button
                 key={d.value}
+                type="button"
                 onClick={() => setField('durationSecs', d.value)}
                 disabled={isRunning}
-                className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors
-                  ${values.durationSecs === d.value
-                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
-                  } disabled:opacity-50`}
+                className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-colors disabled:opacity-50 ${
+                  values.durationSecs === d.value
+                    ? 'border-gold bg-gold/10 text-gold'
+                    : 'border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690]'
+                }`}
               >
                 {d.label}
               </button>
@@ -278,119 +263,79 @@ export default function VideoGeneratePage() {
           </div>
         </div>
 
-        {/* API Key */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Google API Key <span className="text-red-500">*</span>
-          </label>
+        {/* AI ที่ใช้ */}
+        <div>
+          <label className="block text-xs text-[#9C9690] mb-1.5">AI ที่ใช้</label>
           {loadingCreds ? (
-            <div className="h-9 rounded-lg bg-gray-100 dark:bg-gray-700 animate-pulse" />
-          ) : credentials.length === 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
-              ยังไม่มี Google API Key —{' '}
-              <a href="/settings/connected-ai" className="underline font-medium">เพิ่มได้ที่นี่</a>
-            </div>
+            <div className="h-10 rounded-xl bg-[#2C2A35] animate-pulse" />
           ) : (
             <select
+              required
               value={values.credentialId}
               onChange={e => setField('credentialId', e.target.value)}
               disabled={isRunning}
-              style={{ colorScheme: 'dark' }}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800
-                         text-gray-900 dark:text-gray-100 px-3 py-2 text-sm
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50"
             >
-              <option value="" className="text-gray-500 dark:text-gray-400">— เลือก API Key —</option>
+              <option value="">เลือก AI</option>
               {credentials.map(c => (
-                <option key={c.id} value={c.id} className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">{c.displayName}</option>
+                <option key={c.id} value={c.id}>{c.displayName}</option>
               ))}
             </select>
           )}
         </div>
 
-        {/* Auto-save indicator */}
-        {savedAt && !isRunning && (
-          <p className="text-xs text-gray-400">
-            บันทึกอัตโนมัติเมื่อ {new Date(savedAt).toLocaleTimeString('th-TH')}
-          </p>
-        )}
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={isRunning || !values.prompt.trim() || !values.credentialId}
+          className="w-full rounded-xl bg-gold text-black font-semibold py-2.5 text-sm disabled:opacity-50"
+        >
+          {isRunning ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="animate-spin">⏳</span>
+              กำลังสร้างวิดีโอ… (ใช้เวลา 2–4 นาที)
+            </span>
+          ) : '🎬 สร้างวิดีโอ'}
+        </button>
+      </form>
 
-        {/* Action buttons */}
-        <div className="flex gap-3 pt-2">
-          <button
-            onClick={handleSubmit}
-            disabled={isRunning || !values.prompt.trim() || !values.credentialId}
-            className="flex-1 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700
-                       text-white text-sm font-medium transition-colors
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isRunning ? 'กำลังสร้าง…' : '✨ สร้างวิดีโอ'}
-          </button>
-          {!isRunning && (
-            <button
-              onClick={() => { clearForm(); info('ล้างข้อมูลแล้ว') }}
-              className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700
-                         text-gray-600 dark:text-gray-400 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              ล้าง
-            </button>
-          )}
-          {isRunning && (
-            <button
-              onClick={handleCancel}
-              className="px-4 py-2.5 rounded-lg border border-red-200 text-red-600 text-sm
-                         hover:bg-red-50 transition-colors"
-            >
-              ยกเลิก
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Progress / Result card */}
+      {/* Progress / Result */}
       {jobState && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+        <div className="mt-8 max-w-xl border-t border-[#2C2A35] pt-6 space-y-4">
 
-          {/* Status badge */}
+          {/* Status */}
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">สถานะงาน</span>
+            <span className="text-xs text-[#9C9690]">สถานะงาน</span>
             <StatusBadge status={jobState.status} />
           </div>
 
           {/* Progress bar */}
-          {(jobState.status === 'pending' || jobState.status === 'running') && (
-            <div className="space-y-1.5">
-              <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+          {isRunning && (
+            <div className="space-y-1">
+              <div className="h-1.5 bg-[#2C2A35] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-indigo-500 rounded-full transition-all duration-1000"
+                  className="h-full bg-gold rounded-full transition-all duration-1000"
                   style={{ width: `${jobState.progress}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-400 text-right">{jobState.progress}%</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {jobState.status === 'pending'
-                  ? 'รอคิวประมวลผล…'
-                  : 'Veo 3.1 กำลังสร้างวิดีโอ — ใช้เวลาประมาณ 2–4 นาที'}
+              <p className="text-[10px] text-[#9C9690]">
+                {jobState.status === 'pending' ? 'รอคิวประมวลผล…' : `Veo 3.1 กำลังสร้างวิดีโอ — ${jobState.progress}%`}
               </p>
             </div>
           )}
 
           {/* Retry info */}
-          {jobState.attempts > 1 && jobState.status === 'running' && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              ⚠ ลองครั้งที่ {jobState.attempts} / {jobState.maxAttempts}
-            </p>
+          {jobState.attempts > 1 && isRunning && (
+            <p className="text-[10px] text-[#C9716A]">⚠ ลองครั้งที่ {jobState.attempts} / {jobState.maxAttempts}</p>
           )}
 
-          {/* Error message */}
+          {/* Error */}
           {jobState.status === 'failed' && jobState.errorMessage && (
-            <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3">
-              <p className="text-sm text-red-700 dark:text-red-400 font-medium">สร้างวิดีโอไม่สำเร็จ</p>
-              <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">{jobState.errorMessage}</p>
+            <div className="p-3 rounded-xl border border-[#C9716A]/30 bg-[#C9716A]/10">
+              <p className="text-sm text-[#C9716A] font-medium">สร้างวิดีโอไม่สำเร็จ</p>
+              <p className="text-xs text-[#C9716A]/80 mt-0.5">{jobState.errorMessage}</p>
               {jobState.errorCode === 'content_policy' && (
-                <p className="text-xs text-red-500 mt-1">
-                  💡 ลอง prompt อื่นที่ไม่มีเนื้อหาที่ถูกจำกัดโดย Google
-                </p>
+                <p className="text-xs text-[#9C9690] mt-1">💡 ลอง prompt อื่นที่ไม่มีเนื้อหาที่ถูกจำกัดโดย Google</p>
               )}
             </div>
           )}
@@ -398,40 +343,37 @@ export default function VideoGeneratePage() {
           {/* Video player */}
           {jobState.status === 'succeeded' && jobState.blobUrl && (
             <div className="space-y-3">
-              <video
-                src={jobState.blobUrl}
-                controls
-                autoPlay
-                className="w-full rounded-lg bg-black"
-                style={{
-                  aspectRatio: values.aspectRatio === '9:16' ? '9/16'
-                             : values.aspectRatio === '1:1'  ? '1/1'
-                             : '16/9',
-                  maxHeight: '480px',
-                  objectFit: 'contain',
-                }}
-              />
+              <div className="rounded-2xl overflow-hidden border border-[#2C2A35] bg-[#1C1B23]">
+                <video
+                  src={jobState.blobUrl}
+                  controls
+                  autoPlay
+                  className="w-full max-h-[480px] object-contain"
+                />
+              </div>
               <div className="flex gap-3">
                 <a
                   href={jobState.blobUrl}
                   download
-                  className="flex-1 py-2 rounded-lg border border-gray-200 dark:border-gray-700
-                             text-center text-sm text-gray-700 dark:text-gray-300
-                             hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  className="text-sm font-semibold text-gold border border-gold/40 rounded-xl px-4 py-2 hover:bg-gold/10"
                 >
-                  ⬇ ดาวน์โหลด
+                  ↓ ดาวน์โหลดวิดีโอ
                 </a>
                 {jobState.assetId && (
-                  <a
+                  <Link
                     href={`/assets/${jobState.assetId}`}
-                    className="flex-1 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-950
-                               text-center text-sm text-indigo-700 dark:text-indigo-300
-                               hover:bg-indigo-100 transition-colors"
+                    className="text-sm font-semibold text-[#9C9690] border border-[#2C2A35] rounded-xl px-4 py-2 hover:border-[#9C9690]"
                   >
-                    ดูใน Asset Library →
-                  </a>
+                    ดู Generation Recipe →
+                  </Link>
                 )}
               </div>
+              <button
+                onClick={() => { setJobState(null); setJobId(null) }}
+                className="text-xs text-[#9C9690] underline"
+              >
+                สร้างวิดีโอใหม่อีกครั้ง
+              </button>
             </div>
           )}
         </div>
@@ -446,23 +388,14 @@ export default function VideoGeneratePage() {
 
 function StatusBadge({ status }: { status: JobStatus }) {
   const map: Record<JobStatus, { label: string; className: string }> = {
-    idle:      { label: '-',            className: 'bg-gray-100 text-gray-500' },
-    pending:   { label: 'รอคิว',        className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' },
-    running:   { label: 'กำลังสร้าง',   className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' },
-    succeeded: { label: 'สำเร็จ ✓',     className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
-    failed:    { label: 'ล้มเหลว',       className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
-    stalled:   { label: 'ค้างอยู่',      className: 'bg-orange-100 text-orange-700' },
-    cancelled: { label: 'ยกเลิกแล้ว',   className: 'bg-gray-100 text-gray-500' },
+    idle:      { label: '-',           className: 'text-[#9C9690]' },
+    pending:   { label: '⏳ รอคิว',    className: 'text-amber-400' },
+    running:   { label: '🔄 กำลังสร้าง', className: 'text-blue-400' },
+    succeeded: { label: '✓ สำเร็จ',    className: 'text-emerald-400' },
+    failed:    { label: '✕ ล้มเหลว',   className: 'text-[#C9716A]' },
+    stalled:   { label: '⚠ ค้างอยู่',  className: 'text-orange-400' },
+    cancelled: { label: 'ยกเลิกแล้ว', className: 'text-[#9C9690]' },
   }
-
   const { label, className } = map[status] ?? map.idle
-
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${className}`}>
-      {status === 'running' && (
-        <span className="mr-1.5 h-2 w-2 rounded-full bg-blue-500 animate-pulse inline-block" />
-      )}
-      {label}
-    </span>
-  )
+  return <span className={`text-xs font-medium ${className}`}>{label}</span>
 }
