@@ -41,8 +41,8 @@ const ASPECT_RATIOS = [
 ]
 
 const DURATION_OPTIONS = [
-  { value: 5, label: '5 วินาที' },
-  { value: 8, label: '8 วินาที' },
+  { value: '5', label: '5 วินาที' },
+  { value: '8', label: '8 วินาที' },
 ]
 
 const POLL_INTERVAL_MS = 5_000
