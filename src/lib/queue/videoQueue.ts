@@ -1,26 +1,5 @@
 // src/lib/queue/videoQueue.ts
-// BullMQ Queue + Job type definitions สำหรับ video generation
-// Redis connection ใช้ Upstash (compatible กับ ioredis interface)
-
 import { Queue, QueueEvents } from 'bullmq'
-import IORedis from 'ioredis'
-
-// ---------------------------------------------------------------------------
-// Redis connection (Upstash)
-// ---------------------------------------------------------------------------
-
-export function getRedisConnection() {
-  const url = process.env.UPSTASH_REDIS_URL
-  if (!url) throw new Error('UPSTASH_REDIS_URL is not set')
-
-  return new IORedis(url, {
-    password: process.env.UPSTASH_REDIS_TOKEN,
-    tls: { rejectUnauthorized: false },
-    maxRetriesPerRequest: null,
-    enableReadyCheck: false,
-    lazyConnect: true,
-  })
-}
 
 // ---------------------------------------------------------------------------
 // Job payload type
@@ -39,6 +18,28 @@ export interface VideoJobPayload {
 }
 
 // ---------------------------------------------------------------------------
+// Connection options — ใช้ object ตรงๆ แทน IORedis instance
+// เพื่อหลีกเลี่ยง ioredis version conflict ระหว่าง package กับ BullMQ
+// ---------------------------------------------------------------------------
+
+function getConnectionOptions() {
+  const url = process.env.UPSTASH_REDIS_URL
+  if (!url) throw new Error('UPSTASH_REDIS_URL is not set')
+
+  // parse rediss://default:TOKEN@host:port
+  const parsed = new URL(url)
+
+  return {
+    host:     parsed.hostname,
+    port:     Number(parsed.port) || 6379,
+    password: parsed.password || process.env.UPSTASH_REDIS_TOKEN,
+    tls:      url.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+    maxRetriesPerRequest: null as null,
+    enableReadyCheck: false,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Queue singleton
 // ---------------------------------------------------------------------------
 
@@ -47,10 +48,8 @@ let _queue: Queue | null = null
 export function getVideoQueue(): Queue {
   if (_queue) return _queue
 
-  const connection = getRedisConnection()
-
   _queue = new Queue('video-jobs', {
-    connection,
+    connection: getConnectionOptions(),
     defaultJobOptions: {
       attempts: 3,
       backoff: {
@@ -73,7 +72,17 @@ let _queueEvents: QueueEvents | null = null
 
 export function getVideoQueueEvents(): QueueEvents {
   if (_queueEvents) return _queueEvents
-  const connection = getRedisConnection()
-  _queueEvents = new QueueEvents('video-jobs', { connection })
+  _queueEvents = new QueueEvents('video-jobs', {
+    connection: getConnectionOptions(),
+  })
   return _queueEvents
+}
+
+// ---------------------------------------------------------------------------
+// getRedisConnection — ใช้ใน videoWorker.ts
+// return connection options object (ไม่ใช่ IORedis instance)
+// ---------------------------------------------------------------------------
+
+export function getRedisConnection() {
+  return getConnectionOptions()
 }
