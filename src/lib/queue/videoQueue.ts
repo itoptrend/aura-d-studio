@@ -15,8 +15,8 @@ export function getRedisConnection() {
 
   return new IORedis(url, {
     password: process.env.UPSTASH_REDIS_TOKEN,
-    tls: { rejectUnauthorized: false }, // Upstash ต้องการ TLS
-    maxRetriesPerRequest: null,         // required by BullMQ
+    tls: { rejectUnauthorized: false },
+    maxRetriesPerRequest: null,
     enableReadyCheck: false,
     lazyConnect: true,
   })
@@ -27,38 +27,38 @@ export function getRedisConnection() {
 // ---------------------------------------------------------------------------
 
 export interface VideoJobPayload {
-  videoJobId: string       // PK ของ VideoJob ใน DB — Worker ใช้ update status
-  teamId:     string
-  provider:   'google' | 'kling' | 'runway'
-  modelCode:  string       // e.g. 'veo-3.0-generate-preview'
-  prompt:     string
+  videoJobId:      string
+  teamId:          string
+  provider:        'google' | 'kling' | 'runway'
+  modelCode:       string
+  prompt:          string
   negativePrompt?: string
-  durationSecs:    number  // 5 | 8
-  aspectRatio:     string  // '16:9' | '9:16' | '1:1'
-  credentialId:    string  // ใช้ดึง API key จาก DB
+  durationSecs:    number
+  aspectRatio:     string
+  credentialId:    string
 }
 
 // ---------------------------------------------------------------------------
-// Queue singleton (lazy-init เพื่อกัน cold-start crash ถ้า Redis ยังไม่พร้อม)
+// Queue singleton
 // ---------------------------------------------------------------------------
 
-let _queue: Queue<VideoJobPayload, void, string> | null = null
+let _queue: Queue | null = null
 
-export function getVideoQueue(): Queue<VideoJobPayload, void, string> {
+export function getVideoQueue(): Queue {
   if (_queue) return _queue
 
   const connection = getRedisConnection()
 
-  _queue = new Queue<VideoJobPayload, void, string>('video-jobs', {
+  _queue = new Queue('video-jobs', {
     connection,
     defaultJobOptions: {
-      attempts:    3,
+      attempts: 3,
       backoff: {
         type:  'exponential',
-        delay: 10_000,  // 10s → 20s → 40s
+        delay: 10_000,
       },
-      removeOnComplete: { age: 3600 },       // เก็บ completed jobs ไว้ 1 ชม.
-      removeOnFail:     { age: 86_400 },     // เก็บ failed jobs ไว้ 1 วัน
+      removeOnComplete: { age: 3600 },
+      removeOnFail:     { age: 86_400 },
     },
   })
 
@@ -66,7 +66,7 @@ export function getVideoQueue(): Queue<VideoJobPayload, void, string> {
 }
 
 // ---------------------------------------------------------------------------
-// QueueEvents — ใช้ใน polling endpoint เพื่อ subscribe completion events
+// QueueEvents singleton
 // ---------------------------------------------------------------------------
 
 let _queueEvents: QueueEvents | null = null
