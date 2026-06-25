@@ -8,7 +8,7 @@ import { Queue, QueueEvents } from 'bullmq'
 export interface VideoJobPayload {
   videoJobId:      string
   teamId:          string
-  provider: 'google' | 'kling' | 'xai' | 'runway'
+  provider: 'google' | 'google-vertex' | 'kling' | 'xai' | 'runway'
   modelCode:       string
   prompt:          string
   negativePrompt?: string
@@ -18,15 +18,13 @@ export interface VideoJobPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Connection options — ใช้ object ตรงๆ แทน IORedis instance
-// เพื่อหลีกเลี่ยง ioredis version conflict ระหว่าง package กับ BullMQ
+// Connection options
 // ---------------------------------------------------------------------------
 
 function getConnectionOptions() {
   const url = process.env.UPSTASH_REDIS_URL
   if (!url) throw new Error('UPSTASH_REDIS_URL is not set')
 
-  // parse rediss://default:TOKEN@host:port
   const parsed = new URL(url)
 
   return {
@@ -80,7 +78,6 @@ export function getVideoQueueEvents(): QueueEvents {
 
 // ---------------------------------------------------------------------------
 // getRedisConnection — ใช้ใน videoWorker.ts
-// return connection options object (ไม่ใช่ IORedis instance)
 // ---------------------------------------------------------------------------
 
 export function getRedisConnection() {

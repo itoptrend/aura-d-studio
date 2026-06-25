@@ -19,25 +19,22 @@ interface CredentialRow {
   provider: { displayName: string };
 }
 
-// providers ที่ใช้ JSON แทน API Key string ธรรมดา
-const JSON_CREDENTIAL_PROVIDERS = new Set(['google-vertex'])
-
 export default function ConnectedAiPage() {
-  const [providers,    setProviders]    = useState<Provider[]>([]);
-  const [credentials,  setCredentials]  = useState<CredentialRow[]>([]);
-  const [form,         setForm]         = useState({ providerCode: '', displayName: '', apiKey: '' });
-  const [submitting,   setSubmitting]   = useState(false);
-  const [error,        setError]        = useState<string | null>(null);
-  const [testingId,    setTestingId]    = useState<string | null>(null);
-  const [deletingId,   setDeletingId]   = useState<string | null>(null);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [credentials, setCredentials] = useState<CredentialRow[]>([]);
+  const [form, setForm] = useState({ providerCode: '', displayName: '', apiKey: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function loadAll() {
     const [providersRes, credentialsRes] = await Promise.all([
       fetch('/api/ai-providers'),
       fetch('/api/credentials')
     ]);
-    const providersData    = await providersRes.json();
-    const credentialsData  = await credentialsRes.json();
+    const providersData = await providersRes.json();
+    const credentialsData = await credentialsRes.json();
     setProviders(providersData.providers ?? []);
     setCredentials(credentialsData.credentials ?? []);
   }
@@ -47,21 +44,6 @@ export default function ConnectedAiPage() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
-    // Validate JSON สำหรับ Vertex AI
-    if (JSON_CREDENTIAL_PROVIDERS.has(form.providerCode)) {
-      try {
-        const parsed = JSON.parse(form.apiKey);
-        if (parsed.type !== 'service_account') {
-          setError('กรุณา paste Service Account Key JSON ที่มี "type": "service_account"');
-          return;
-        }
-      } catch {
-        setError('JSON ไม่ถูกต้อง — กรุณา paste Service Account Key JSON ทั้งหมด');
-        return;
-      }
-    }
-
     setSubmitting(true);
     const res = await fetch('/api/credentials', {
       method: 'POST',
@@ -103,8 +85,9 @@ export default function ConnectedAiPage() {
     await loadAll();
   }
 
-  const selectedProvider  = providers.find((p) => p.code === form.providerCode);
-  const isJsonProvider    = JSON_CREDENTIAL_PROVIDERS.has(form.providerCode);
+  const selectedCredential = credentials.find((c) => c.id === '');
+  const selectedProvider = providers.find((p) => p.code === form.providerCode);
+  void selectedCredential;
 
   return (
     <div>
@@ -173,7 +156,7 @@ export default function ConnectedAiPage() {
         <select
           required
           value={form.providerCode}
-          onChange={(e) => setForm({ ...form, providerCode: e.target.value, apiKey: '' })}
+          onChange={(e) => setForm({ ...form, providerCode: e.target.value })}
           className="w-full rounded-xl px-3.5 py-2.5 text-sm"
         >
           <option value="">เลือก AI Provider</option>
@@ -183,49 +166,23 @@ export default function ConnectedAiPage() {
             </option>
           ))}
         </select>
-
         <input
           required
-          placeholder="ตั้งชื่อ เช่น Vertex AI - Project MyApp"
+          placeholder="ตั้งชื่อ เช่น Gemini บัญชีส่วนตัว"
           value={form.displayName}
           onChange={(e) => setForm({ ...form, displayName: e.target.value })}
           className="w-full rounded-xl px-3.5 py-2.5 text-sm"
         />
+        <input
+          required
+          type="password"
+          placeholder="วาง API Key ที่นี่"
+          value={form.apiKey}
+          onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
+          className="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono"
+        />
 
-        {/* Vertex AI — ใช้ textarea รับ JSON */}
-        {isJsonProvider ? (
-          <div className="space-y-2">
-            <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
-              <p className="text-xs text-amber-400 font-semibold mb-1">🔑 Service Account Key JSON</p>
-              <p className="text-[11px] text-amber-300/80 leading-relaxed">
-                ต้องใช้ <strong>Service Account Key</strong> ไม่ใช่ API Key ธรรมดา<br />
-                1. ไปที่ <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener noreferrer" className="underline">Google Cloud Console → Service Accounts</a><br />
-                2. สร้าง Service Account → Add Role: <strong>Vertex AI User</strong><br />
-                3. Keys → Add Key → Create new key → JSON → Download<br />
-                4. เปิดไฟล์ .json แล้ว paste ทั้งหมดด้านล่าง
-              </p>
-            </div>
-            <textarea
-              required
-              rows={8}
-              placeholder={'{\n  "type": "service_account",\n  "project_id": "your-project-id",\n  "private_key": "-----BEGIN PRIVATE KEY-----\\n..."\n  ...\n}'}
-              value={form.apiKey}
-              onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-              className="w-full rounded-xl px-3.5 py-2.5 text-xs font-mono resize-y min-h-[160px]"
-            />
-          </div>
-        ) : (
-          <input
-            required
-            type="password"
-            placeholder="วาง API Key ที่นี่"
-            value={form.apiKey}
-            onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-            className="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono"
-          />
-        )}
-
-        {/* Model preview */}
+        {/* Model preview — shows which models are available for this provider, grouped by capability */}
         {selectedProvider && selectedProvider.models.length > 0 && (
           <div className="rounded-xl border border-[#2C2A35] px-3.5 py-3">
             <p className="text-xs text-[#9C9690] mb-2">โมเดลที่รองรับ ({selectedProvider.models.length} รุ่น)</p>

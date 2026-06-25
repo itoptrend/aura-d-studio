@@ -4,6 +4,11 @@ import { prisma } from '@/lib/db'
 import { decryptSecret } from '@/lib/encryption'
 import { getRedisConnection, VideoJobPayload } from './videoQueue'
 import { startVeoGeneration, pollVeoOperation, uploadVeoVideoToBlob } from '@/lib/ai/veo'
+import {
+  startVeoVertexGeneration,
+  pollVeoVertexOperation,
+  uploadVeoVertexVideoToBlob,
+} from '@/lib/ai/veo-vertex'
 import { startKlingGeneration, pollKlingTask, uploadKlingVideoToBlob } from '@/lib/ai/kling'
 import { startGrokVideoGeneration, pollGrokVideo, uploadGrokVideoToBlob } from '@/lib/ai/grok-video'
 
@@ -33,14 +38,23 @@ async function processVideoJob(job: Job<VideoJobPayload>): Promise<void> {
 
   switch (provider) {
     case 'google':
+      // AI Studio Key (generativelanguage.googleapis.com) — ใช้ veo.ts เดิม
       blobUrl = await processVeoJob({ job, videoJobId, apiKey, modelCode, prompt, negativePrompt, durationSecs, aspectRatio })
       break
+
+    case 'google-vertex':
+      // Service Account JSON (aiplatform.googleapis.com) — ใช้ veo-vertex.ts
+      blobUrl = await processVeoVertexJob({ job, videoJobId, serviceAccountJson: apiKey, modelCode, prompt, negativePrompt, durationSecs, aspectRatio })
+      break
+
     case 'kling':
       blobUrl = await processKlingJob({ job, videoJobId, apiKey, modelCode, prompt, negativePrompt, durationSecs, aspectRatio })
       break
+
     case 'xai':
       blobUrl = await processGrokJob({ job, videoJobId, apiKey, modelCode, prompt, durationSecs, aspectRatio })
       break
+
     default:
       throw new Error(`Provider "${provider}" ยังไม่รองรับ`)
   }
@@ -65,7 +79,7 @@ async function processVideoJob(job: Job<VideoJobPayload>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Veo processor
+// Veo (AI Studio) processor
 // ---------------------------------------------------------------------------
 
 async function processVeoJob(opts: {
@@ -97,6 +111,50 @@ async function processVeoJob(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Veo (Vertex AI) processor
+// ---------------------------------------------------------------------------
+
+async function processVeoVertexJob(opts: {
+  job: Job<VideoJobPayload>; videoJobId: string; serviceAccountJson: string
+  modelCode: string; prompt: string; negativePrompt?: string
+  durationSecs: number; aspectRatio: string
+}): Promise<string> {
+  const { job, videoJobId, serviceAccountJson, modelCode, prompt, negativePrompt, durationSecs, aspectRatio } = opts
+
+  const existing = await prisma.videoJob.findUnique({ where: { id: videoJobId }, select: { providerJobId: true } })
+  let operationName = existing?.providerJobId ?? null
+
+  if (!operationName) {
+    operationName = await startVeoVertexGeneration({
+      serviceAccountJson,
+      modelCode,
+      prompt,
+      negativePrompt,
+      durationSecs,
+      aspectRatio,
+    })
+    await prisma.videoJob.update({ where: { id: videoJobId }, data: { providerJobId: operationName } })
+  }
+
+  await job.updateProgress(20)
+
+  // Veo Vertex ใช้เวลา ~2-8 นาที poll ทุก 8 วินาที max 70 รอบ
+  for (let i = 0; i < 70; i++) {
+    await sleep(8_000)
+    const result = await pollVeoVertexOperation({ serviceAccountJson, operationName, modelCode })
+    if (!result.done) { await job.updateProgress(20 + Math.round((i / 70) * 60)); continue }
+    if (result.error) { throwError(result.error, result.nonRetryable) }
+    await job.updateProgress(80)
+    return await uploadVeoVertexVideoToBlob({
+      videoBase64: result.videoBase64,
+      gcsUri:      result.gcsUri,
+      jobId:       videoJobId,
+    })
+  }
+  throwError('Veo Vertex ใช้เวลานานเกินไป (> 9 นาที)', false, 'timeout')
+}
+
+// ---------------------------------------------------------------------------
 // Kling processor
 // ---------------------------------------------------------------------------
 
@@ -117,7 +175,6 @@ async function processKlingJob(opts: {
 
   await job.updateProgress(20)
 
-  // Kling ใช้เวลาประมาณ 2-5 นาที poll ทุก 8 วินาที max 50 รอบ
   for (let i = 0; i < 50; i++) {
     await sleep(8_000)
     const result = await pollKlingTask({ apiKey, taskId })
@@ -149,7 +206,6 @@ async function processGrokJob(opts: {
 
   await job.updateProgress(20)
 
-  // Grok เร็วกว่า poll ทุก 5 วินาที max 40 รอบ (~ 3 นาที)
   for (let i = 0; i < 40; i++) {
     await sleep(5_000)
     const result = await pollGrokVideo({ apiKey, requestId })
@@ -173,7 +229,7 @@ function throwError(message: string, nonRetryable?: boolean, code = 'api_error')
 }
 
 async function handleJobFailure(job: Job<VideoJobPayload>, err: unknown): Promise<void> {
-  const error       = err as any
+  const error         = err as any
   const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 3)
   if (error?.nonRetryable || isLastAttempt) {
     await prisma.videoJob.update({
@@ -188,9 +244,9 @@ async function handleJobFailure(job: Job<VideoJobPayload>, err: unknown): Promis
 // ---------------------------------------------------------------------------
 
 export async function recoverStalledJobs(): Promise<void> {
-  const cutoff     = new Date(Date.now() - STALL_TIMEOUT_MS)
+  const cutoff      = new Date(Date.now() - STALL_TIMEOUT_MS)
   const stalledJobs = await prisma.videoJob.findMany({
-    where: { status: 'running', startedAt: { lt: cutoff } },
+    where:  { status: 'running', startedAt: { lt: cutoff } },
     select: { id: true },
   })
   if (stalledJobs.length === 0) return
