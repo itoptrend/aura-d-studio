@@ -17,6 +17,11 @@ interface Credential {
   status:       string
 }
 
+interface Provider {
+  code:   string
+  models: { modelCode: string; displayName: string; capability: string }[]
+}
+
 type JobStatus = 'idle' | 'pending' | 'running' | 'succeeded' | 'failed' | 'stalled' | 'cancelled'
 
 interface JobPollResponse {
@@ -61,31 +66,40 @@ export default function VideoGeneratePage() {
     aspectRatio:    '16:9',
     durationSecs:   '8',
     credentialId:   '',
+    modelCode:      '',
   })
 
-  const [credentials, setCredentials]   = useState<Credential[]>([])
-  const [loadingCreds, setLoadingCreds] = useState(true)
+  const [credentials, setCredentials] = useState<Credential[]>([])
+  const [providers,   setProviders]   = useState<Provider[]>([])
 
   const [jobId,    setJobId]    = useState<string | null>(null)
   const [jobState, setJobState] = useState<JobPollResponse | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // — Load credentials
+  // — Load credentials + video providers
   useEffect(() => {
-    fetch('/api/credentials')
-      .then(r => r.json())
-      .then((data: { credentials: Credential[] }) => {
-        const active = (data.credentials ?? []).filter(
-          c => c.status === 'active' && c.providerCode === 'google'
-        )
-        setCredentials(active)
-        if (active.length === 1 && !values.credentialId) {
-          setField('credentialId', active[0].id)
-        }
-      })
-      .catch(() => toastError('โหลด API Keys ล้มเหลว'))
-      .finally(() => setLoadingCreds(false))
+    Promise.all([
+      fetch('/api/credentials').then(r => r.json()),
+      fetch('/api/ai-providers?capability=video').then(r => r.json()),
+    ]).then(([credData, provData]) => {
+      const allCreds = (credData.credentials ?? []) as Credential[]
+      const allProvs = (provData.providers   ?? []) as Provider[]
+      setProviders(allProvs)
+      // กรองเฉพาะ credential ที่ provider รองรับ video
+      const videoCreds = allCreds.filter(
+        c => c.status === 'active' && allProvs.some(p => p.code === c.providerCode)
+      )
+      setCredentials(videoCreds)
+      if (videoCreds.length === 1 && !values.credentialId) {
+        setField('credentialId', videoCreds[0].id)
+      }
+    }).catch(() => toastError('โหลด API Keys ล้มเหลว'))
   }, [])
+
+  // — หา provider ของ credential ที่เลือก
+  const selectedCredential = credentials.find(c => c.id === values.credentialId)
+  const selectedProvider   = providers.find(p => p.code === selectedCredential?.providerCode)
+  const videoModels        = selectedProvider?.models.filter(m => m.capability === 'video') ?? []
 
   // — Polling
   const stopPolling = useCallback(() => {
@@ -111,8 +125,9 @@ export default function VideoGeneratePage() {
   // — Submit
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!values.prompt.trim()) { toastError('กรุณาใส่ prompt'); return }
-    if (!values.credentialId)  { toastError('กรุณาเลือก AI Key'); return }
+    if (!values.prompt.trim())   { toastError('กรุณาใส่ prompt'); return }
+    if (!values.credentialId)    { toastError('กรุณาเลือก AI Key'); return }
+    if (!values.modelCode)       { toastError('กรุณาเลือกโมเดล'); return }
 
     setJobId(null)
     setJobState(null)
@@ -127,8 +142,8 @@ export default function VideoGeneratePage() {
           aspectRatio:    values.aspectRatio,
           durationSecs:   Number(values.durationSecs),
           credentialId:   values.credentialId,
-          provider:       'google',
-          modelCode:      'veo-3.0-generate-preview',
+          provider:       selectedCredential?.providerCode ?? 'google',
+          modelCode:      values.modelCode,
         }),
       })
       const data = await res.json()
@@ -154,7 +169,7 @@ export default function VideoGeneratePage() {
       <div className="flex items-center justify-between mb-1">
         <div>
           <h1 className="font-serif text-2xl">สร้างวิดีโอ AI</h1>
-          <p className="text-sm text-[#9C9690] mt-1">ขับเคลื่อนด้วย Google Veo 3.1 — ใช้เวลาประมาณ 2–4 นาทีต่อวิดีโอ</p>
+          <p className="text-sm text-[#9C9690] mt-1">สร้างวิดีโอด้วย Google Veo 3.1 และ Grok Imagine Video</p>
         </div>
         <div className="flex items-center gap-2">
           {savedAt && <span className="text-[10px] text-[#9C9690]">💾 {formatSavedAt(savedAt)}</span>}
@@ -169,9 +184,11 @@ export default function VideoGeneratePage() {
       </div>
 
       {/* No credentials warning */}
-      {!loadingCreds && credentials.length === 0 && (
+      {credentials.length === 0 && (
         <div className="mt-4 p-4 rounded-2xl border border-[#2C2A35] text-sm text-[#9C9690]">
-          ยังไม่มี Google API Key — ต้องใช้ <strong className="text-bone">Google Gemini</strong> สำหรับ Veo 3.1{' '}
+          ยังไม่มี API Key ที่รองรับการสร้างวิดีโอ — ต้องใช้{' '}
+          <strong className="text-bone">Google Gemini</strong> (Veo 3.1) หรือ{' '}
+          <strong className="text-bone">xAI Grok</strong> (Grok Imagine Video){' '}
           <Link href="/settings/connected-ai" className="text-gold font-semibold">ไปที่ Connected AI →</Link>
         </div>
       )}
@@ -263,16 +280,17 @@ export default function VideoGeneratePage() {
           </div>
         </div>
 
-        {/* AI ที่ใช้ */}
-        <div>
-          <label className="block text-xs text-[#9C9690] mb-1.5">AI ที่ใช้</label>
-          {loadingCreds ? (
-            <div className="h-10 rounded-xl bg-[#2C2A35] animate-pulse" />
-          ) : (
+        {/* AI + Model — grid เหมือนหน้า image */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1.5">AI ที่ใช้</label>
             <select
               required
               value={values.credentialId}
-              onChange={e => setField('credentialId', e.target.value)}
+              onChange={e => {
+                setField('credentialId', e.target.value)
+                setField('modelCode', '')
+              }}
               disabled={isRunning}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50"
             >
@@ -281,13 +299,31 @@ export default function VideoGeneratePage() {
                 <option key={c.id} value={c.id}>{c.displayName}</option>
               ))}
             </select>
+          </div>
+
+          {selectedProvider && videoModels.length > 0 && (
+            <div>
+              <label className="block text-xs text-[#9C9690] mb-1.5">โมเดล</label>
+              <select
+                required
+                value={values.modelCode}
+                onChange={e => setField('modelCode', e.target.value)}
+                disabled={isRunning}
+                className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50"
+              >
+                <option value="">เลือกโมเดล</option>
+                {videoModels.map(m => (
+                  <option key={m.modelCode} value={m.modelCode}>{m.displayName}</option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
 
         {/* Submit */}
         <button
           type="submit"
-          disabled={isRunning || !values.prompt.trim() || !values.credentialId}
+          disabled={isRunning || !values.prompt.trim() || !values.credentialId || !values.modelCode}
           className="w-full rounded-xl bg-gold text-black font-semibold py-2.5 text-sm disabled:opacity-50"
         >
           {isRunning ? (
@@ -303,13 +339,11 @@ export default function VideoGeneratePage() {
       {jobState && (
         <div className="mt-8 max-w-xl border-t border-[#2C2A35] pt-6 space-y-4">
 
-          {/* Status */}
           <div className="flex items-center justify-between">
             <span className="text-xs text-[#9C9690]">สถานะงาน</span>
             <StatusBadge status={jobState.status} />
           </div>
 
-          {/* Progress bar */}
           {isRunning && (
             <div className="space-y-1">
               <div className="h-1.5 bg-[#2C2A35] rounded-full overflow-hidden">
@@ -319,28 +353,25 @@ export default function VideoGeneratePage() {
                 />
               </div>
               <p className="text-[10px] text-[#9C9690]">
-                {jobState.status === 'pending' ? 'รอคิวประมวลผล…' : `Veo 3.1 กำลังสร้างวิดีโอ — ${jobState.progress}%`}
+                {jobState.status === 'pending' ? 'รอคิวประมวลผล…' : `กำลังสร้างวิดีโอ — ${jobState.progress}%`}
               </p>
             </div>
           )}
 
-          {/* Retry info */}
           {jobState.attempts > 1 && isRunning && (
             <p className="text-[10px] text-[#C9716A]">⚠ ลองครั้งที่ {jobState.attempts} / {jobState.maxAttempts}</p>
           )}
 
-          {/* Error */}
           {jobState.status === 'failed' && jobState.errorMessage && (
             <div className="p-3 rounded-xl border border-[#C9716A]/30 bg-[#C9716A]/10">
               <p className="text-sm text-[#C9716A] font-medium">สร้างวิดีโอไม่สำเร็จ</p>
               <p className="text-xs text-[#C9716A]/80 mt-0.5">{jobState.errorMessage}</p>
               {jobState.errorCode === 'content_policy' && (
-                <p className="text-xs text-[#9C9690] mt-1">💡 ลอง prompt อื่นที่ไม่มีเนื้อหาที่ถูกจำกัดโดย Google</p>
+                <p className="text-xs text-[#9C9690] mt-1">💡 ลอง prompt อื่นที่ไม่มีเนื้อหาที่ถูกจำกัดโดย provider</p>
               )}
             </div>
           )}
 
-          {/* Video player */}
           {jobState.status === 'succeeded' && jobState.blobUrl && (
             <div className="space-y-3">
               <div className="rounded-2xl overflow-hidden border border-[#2C2A35] bg-[#1C1B23]">
@@ -388,13 +419,13 @@ export default function VideoGeneratePage() {
 
 function StatusBadge({ status }: { status: JobStatus }) {
   const map: Record<JobStatus, { label: string; className: string }> = {
-    idle:      { label: '-',           className: 'text-[#9C9690]' },
-    pending:   { label: '⏳ รอคิว',    className: 'text-amber-400' },
-    running:   { label: '🔄 กำลังสร้าง', className: 'text-blue-400' },
-    succeeded: { label: '✓ สำเร็จ',    className: 'text-emerald-400' },
-    failed:    { label: '✕ ล้มเหลว',   className: 'text-[#C9716A]' },
-    stalled:   { label: '⚠ ค้างอยู่',  className: 'text-orange-400' },
-    cancelled: { label: 'ยกเลิกแล้ว', className: 'text-[#9C9690]' },
+    idle:      { label: '-',              className: 'text-[#9C9690]' },
+    pending:   { label: '⏳ รอคิว',       className: 'text-amber-400' },
+    running:   { label: '🔄 กำลังสร้าง',  className: 'text-blue-400' },
+    succeeded: { label: '✓ สำเร็จ',       className: 'text-emerald-400' },
+    failed:    { label: '✕ ล้มเหลว',      className: 'text-[#C9716A]' },
+    stalled:   { label: '⚠ ค้างอยู่',     className: 'text-orange-400' },
+    cancelled: { label: 'ยกเลิกแล้ว',    className: 'text-[#9C9690]' },
   }
   const { label, className } = map[status] ?? map.idle
   return <span className={`text-xs font-medium ${className}`}>{label}</span>
