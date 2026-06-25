@@ -157,30 +157,6 @@ export default function VideoGeneratePage() {
     }
   }
 
-
-  // — Cancel
-  async function handleCancel() {
-    if (!jobId) return
-    if (jobState?.status === 'running') {
-      info('กำลังสร้างวิดีโออยู่ กรุณารอสักครู่ — ไม่สามารถยกเลิกได้ในขณะนี้')
-      return
-    }
-    try {
-      const res  = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (res.status === 409 && data.cannotCancel) {
-        info('กำลังสร้างวิดีโออยู่ กรุณารอสักครู่')
-        return
-      }
-      if (!res.ok) { toastError(data.error ?? 'ยกเลิกไม่สำเร็จ'); return }
-      stopPolling()
-      setJobState(prev => prev ? { ...prev, status: 'cancelled' } : null)
-      info('ยกเลิกงานแล้ว')
-    } catch {
-      toastError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้')
-    }
-  }
-
   const isRunning = jobState?.status === 'pending' || jobState?.status === 'running'
 
   // ---------------------------------------------------------------------------
@@ -357,18 +333,6 @@ export default function VideoGeneratePage() {
             </span>
           ) : '🎬 สร้างวิดีโอ'}
         </button>
-
-        {/* Cancel button — โผล่เมื่อมี jobState และยังไม่เสร็จ */}
-        {jobState && !['succeeded', 'failed', 'cancelled'].includes(jobState.status) && (
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="w-full rounded-xl border border-[#C9716A]/50 text-[#C9716A] py-2 text-sm hover:bg-[#C9716A]/10 transition-colors"
-          >
-            {jobState.status === 'running' ? '⏸ กำลังสร้างอยู่ — ยกเลิกไม่ได้ในขณะนี้' : '✕ ยกเลิกงาน'}
-          </button>
-        )}
-
       </form>
 
       {/* Progress / Result */}
