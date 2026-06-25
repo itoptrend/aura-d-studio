@@ -160,32 +160,19 @@ export default function VideoGeneratePage() {
 
   // — Cancel / Clear
   async function handleCancel() {
-    // ถ้าไม่มีงานอยู่ — ล้างฟอร์มและ state อย่างเดียว
-    if (!jobId) {
-      clearForm()
-      setJobState(null)
-      info('ล้างข้อมูลแล้ว')
-      return
-    }
     // งาน running — แจ้งเตือนและรอต่อ ไม่ยกเลิก
     if (jobState?.status === 'running') {
       info('กำลังสร้างวิดีโออยู่ กรุณารอสักครู่ — ระบบจะแจ้งเมื่อเสร็จ')
       return
     }
-    // งาน pending — ยกเลิกได้
     try {
-      const res  = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (res.status === 409 && data.cannotCancel) {
-        info('กำลังสร้างวิดีโออยู่ กรุณารอสักครู่')
-        return
-      }
-      if (!res.ok) { toastError(data.error ?? 'ยกเลิกไม่สำเร็จ'); return }
+      // ยกเลิก pending jobs ทั้งหมดของ team (รวมถึง jobId ปัจจุบัน)
+      await fetch('/api/jobs/cancel-all', { method: 'DELETE' })
       stopPolling()
       setJobState(null)
       setJobId(null)
       clearForm()
-      info('ยกเลิกและล้างข้อมูลแล้ว')
+      info('ล้างข้อมูลและยกเลิกงานที่รออยู่แล้ว')
     } catch {
       toastError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้')
     }
