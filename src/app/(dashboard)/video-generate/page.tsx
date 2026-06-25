@@ -41,8 +41,8 @@ const ASPECT_RATIOS = [
 ]
 
 const DURATION_OPTIONS = [
-  { value: '5', label: '5 วินาที' },
-  { value: '8', label: '8 วินาที' },
+  { value: 5, label: '5 วินาที' },
+  { value: 8, label: '8 วินาที' },
 ]
 
 const POLL_INTERVAL_MS = 5_000
@@ -59,7 +59,7 @@ export default function VideoGeneratePage() {
     prompt:         '',
     negativePrompt: '',
     aspectRatio:    '16:9',
-    durationSecs:   '8',
+    durationSecs:   8,
     credentialId:   '',
   })
 
@@ -74,10 +74,10 @@ export default function VideoGeneratePage() {
 
   // — Load credentials (Google only for Phase 3)
   useEffect(() => {
-    fetch('/api/credentials?providerCode=google')
+    fetch('/api/credentials')
       .then(r => r.json())
-      .then((data: Credential[]) => {
-        const active = data.filter(c => c.status === 'active')
+      .then((data: { credentials: Credential[] }) => {
+        const active = data.credentials.filter(c => c.status === 'active' && c.providerCode === 'google')
         setCredentials(active)
         // auto-select ถ้ามีแค่ตัวเดียว
         if (active.length === 1 && !values.credentialId) {
@@ -144,7 +144,7 @@ export default function VideoGeneratePage() {
           prompt:         values.prompt.trim(),
           negativePrompt: values.negativePrompt?.trim() || undefined,
           aspectRatio:    values.aspectRatio,
-          durationSecs:   Number(values.durationSecs),
+          durationSecs:   values.durationSecs,
           credentialId:   values.credentialId,
           provider:       'google',
           modelCode:      'veo-3.0-generate-preview',
@@ -295,13 +295,14 @@ export default function VideoGeneratePage() {
               value={values.credentialId}
               onChange={e => setField('credentialId', e.target.value)}
               disabled={isRunning}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900
-                         text-gray-900 dark:text-white px-3 py-2 text-sm
+              style={{ colorScheme: 'dark' }}
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800
+                         text-gray-900 dark:text-gray-100 px-3 py-2 text-sm
                          focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
             >
-              <option value="">— เลือก API Key —</option>
+              <option value="" className="text-gray-500 dark:text-gray-400">— เลือก API Key —</option>
               {credentials.map(c => (
-                <option key={c.id} value={c.id}>{c.displayName}</option>
+                <option key={c.id} value={c.id} className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">{c.displayName}</option>
               ))}
             </select>
           )}
