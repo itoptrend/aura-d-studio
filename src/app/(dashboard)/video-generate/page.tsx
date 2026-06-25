@@ -158,13 +158,21 @@ export default function VideoGeneratePage() {
   }
 
 
-  // — Cancel
+  // — Cancel / Clear
   async function handleCancel() {
-    if (!jobId) return
-    if (jobState?.status === 'running') {
-      info('กำลังสร้างวิดีโออยู่ กรุณารอสักครู่ — ไม่สามารถยกเลิกได้ในขณะนี้')
+    // ถ้าไม่มีงานอยู่ — ล้างฟอร์มและ state อย่างเดียว
+    if (!jobId) {
+      clearForm()
+      setJobState(null)
+      info('ล้างข้อมูลแล้ว')
       return
     }
+    // งาน running — แจ้งเตือนและรอต่อ ไม่ยกเลิก
+    if (jobState?.status === 'running') {
+      info('กำลังสร้างวิดีโออยู่ กรุณารอสักครู่ — ระบบจะแจ้งเมื่อเสร็จ')
+      return
+    }
+    // งาน pending — ยกเลิกได้
     try {
       const res  = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' })
       const data = await res.json()
@@ -174,8 +182,10 @@ export default function VideoGeneratePage() {
       }
       if (!res.ok) { toastError(data.error ?? 'ยกเลิกไม่สำเร็จ'); return }
       stopPolling()
-      setJobState(prev => prev ? { ...prev, status: 'cancelled' } : null)
-      info('ยกเลิกงานแล้ว')
+      setJobState(null)
+      setJobId(null)
+      clearForm()
+      info('ยกเลิกและล้างข้อมูลแล้ว')
     } catch {
       toastError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้')
     }
@@ -344,29 +354,34 @@ export default function VideoGeneratePage() {
           )}
         </div>
 
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={isRunning || !values.prompt.trim() || !values.credentialId || !values.modelCode}
-          className="w-full rounded-xl bg-gold text-black font-semibold py-2.5 text-sm disabled:opacity-50"
-        >
-          {isRunning ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="animate-spin">⏳</span>
-              กำลังสร้างวิดีโอ… (ใช้เวลา 2–4 นาที)
-            </span>
-          ) : '🎬 สร้างวิดีโอ'}
-        </button>
+        {/* Submit + Clear — แสดงตลอดเวลา */}
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={isRunning || !values.prompt.trim() || !values.credentialId || !values.modelCode}
+            className="flex-1 rounded-xl bg-gold text-black font-semibold py-2.5 text-sm disabled:opacity-50"
+          >
+            {isRunning ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin">⏳</span>
+                กำลังสร้าง…
+              </span>
+            ) : '🎬 สร้างวิดีโอ'}
+          </button>
 
-        {/* Cancel button — โผล่เมื่อมี jobState และยังไม่เสร็จ */}
-        {jobState && !['succeeded', 'failed', 'cancelled'].includes(jobState.status) && (
           <button
             type="button"
             onClick={handleCancel}
-            className="w-full rounded-xl border border-[#C9716A]/50 text-[#C9716A] py-2 text-sm hover:bg-[#C9716A]/10 transition-colors"
+            className="px-5 rounded-xl border border-[#2C2A35] text-[#9C9690] text-sm hover:border-[#C9716A] hover:text-[#C9716A] transition-colors whitespace-nowrap"
           >
-            {jobState.status === 'running' ? '⏸ กำลังสร้างอยู่ — ยกเลิกไม่ได้ในขณะนี้' : '✕ ยกเลิกงาน'}
+            {isRunning ? '⏸ รออยู่' : '✕ ล้างข้อมูล'}
           </button>
+        </div>
+
+        {isRunning && (
+          <p className="text-[10px] text-[#9C9690] text-center">
+            กำลังสร้างวิดีโออยู่ — ระบบจะแจ้งเมื่อเสร็จอัตโนมัติ หรือกด ⏸ รออยู่ เพื่อดูสถานะ
+          </p>
         )}
 
       </form>
