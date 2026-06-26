@@ -1,9 +1,41 @@
 // src/lib/ai/kling.ts
-// Kling AI video generation
-// API: api.klingai.com
+// Kling AI video generation — API Singapore endpoint
 // Flow: POST /v1/videos/text2video → poll /v1/videos/text2video/{task_id} → upload to Blob
 
 import { put } from '@vercel/blob'
+
+// ---------------------------------------------------------------------------
+// Kling API base URL (Singapore — ใกล้ Vercel sin1 ที่สุด)
+// ---------------------------------------------------------------------------
+const KLING_BASE = 'https://api-singapore.klingai.com'
+
+// ---------------------------------------------------------------------------
+// Model mapping
+// DB code → Kling API params
+// Kling API รองรับ duration: "5" | "10" เท่านั้น (ไม่รองรับ "8")
+// V2 models ไม่รองรับ cfg_scale และ mode parameter
+// ---------------------------------------------------------------------------
+
+interface KlingApiParams {
+  apiModelName:   string
+  mode?:          'std' | 'pro'   // undefined = ไม่ส่ง (v2 models)
+  supportsCfg:    boolean
+}
+
+const MODEL_MAP: Record<string, KlingApiParams> = {
+  'kling-v1-6-pro':  { apiModelName: 'kling-v1-6',       mode: 'pro', supportsCfg: true  },
+  'kling-v2-master': { apiModelName: 'kling-v2-master',                supportsCfg: false },
+  'kling-v2-5-pro':  { apiModelName: 'kling-v2-5-turbo', mode: 'std', supportsCfg: false },
+}
+
+// แปลง duration ให้ตรงกับที่ Kling รองรับ: 5 หรือ 10 เท่านั้น
+function toKlingDuration(secs: number): string {
+  return secs <= 5 ? '5' : '10'
+}
+
+function getKlingParams(modelCode: string): KlingApiParams {
+  return MODEL_MAP[modelCode] ?? { apiModelName: modelCode, mode: 'std', supportsCfg: true }
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,7 +47,7 @@ interface KlingCreateResponse {
   request_id: string
   data: {
     task_id:     string
-    task_status: string  // submitted | processing | succeed | failed
+    task_status: string
   }
 }
 
@@ -24,17 +56,13 @@ interface KlingQueryResponse {
   message:    string
   request_id: string
   data: {
-    task_id:     string
-    task_status: string
+    task_id:          string
+    task_status:      string
     task_status_msg?: string
-    created_at:  number
-    updated_at:  number
+    created_at:       number
+    updated_at:       number
     task_result?: {
-      videos?: Array<{
-        id:       string
-        url:      string
-        duration: string
-      }>
+      videos?: Array<{ id: string; url: string; duration: string }>
     }
   }
 }
@@ -51,26 +79,31 @@ const NON_RETRYABLE_CODES = new Set([
 // ---------------------------------------------------------------------------
 
 export async function startKlingGeneration(opts: {
-  apiKey:        string
-  prompt:        string
+  apiKey:          string
+  prompt:          string
   negativePrompt?: string
-  modelCode:     string   // 'kling-v2-5-pro' | 'kling-v2-master' | 'kling-v1-6-pro'
-  durationSecs:  number   // 5 | 10
-  aspectRatio:   string   // '16:9' | '9:16' | '1:1'
-}): Promise<string> {  // returns task_id
+  modelCode:       string
+  durationSecs:    number
+  aspectRatio:     string
+}): Promise<string> {
   const { apiKey, prompt, negativePrompt, modelCode, durationSecs, aspectRatio } = opts
 
-  const body = {
-    model_name:      modelCode,
-    prompt:          prompt,
-    negative_prompt: negativePrompt || undefined,
-    cfg_scale:       0.5,
-    mode:            'std',          // std | pro
+  const { apiModelName, mode, supportsCfg } = getKlingParams(modelCode)
+  const duration = toKlingDuration(durationSecs)
+
+  // สร้าง body ตาม capability ของแต่ละโมเดล
+  const body: Record<string, unknown> = {
+    model_name:      apiModelName,
+    prompt,
     aspect_ratio:    aspectRatio,
-    duration:        String(durationSecs),
+    duration,
   }
 
-  const res = await fetch('https://api.klingai.com/v1/videos/text2video', {
+  if (negativePrompt) body.negative_prompt = negativePrompt
+  if (supportsCfg)    body.cfg_scale = 0.5
+  if (mode)           body.mode = mode
+
+  const res = await fetch(`${KLING_BASE}/v1/videos/text2video`, {
     method:  'POST',
     headers: {
       'Content-Type':  'application/json',
@@ -83,13 +116,13 @@ export async function startKlingGeneration(opts: {
 
   if (!res.ok || data.code !== 0) {
     const isNonRetryable = NON_RETRYABLE_CODES.has(data.code)
-    const e = new Error(
-      data.code === 1102
-        ? 'Prompt ไม่ผ่านนโยบายเนื้อหาของ Kling AI — กรุณาแก้ไข prompt แล้วลองใหม่'
-        : data.code === 1103
-        ? 'Credits ของ Kling AI ไม่เพียงพอ — กรุณาเติม credits'
-        : `Kling API error ${data.code}: ${data.message}`
-    )
+    const message =
+      data.code === 1102 ? 'Prompt ไม่ผ่านนโยบายเนื้อหาของ Kling AI — กรุณาแก้ไข prompt แล้วลองใหม่'
+      : data.code === 1103 ? 'Credits ของ Kling AI ไม่เพียงพอ — กรุณาเติม credits'
+      : data.code === 1101 ? `Kling API: parameter ไม่ถูกต้อง — ${data.message}`
+      : `Kling API error ${data.code}: ${data.message}`
+
+    const e = new Error(message)
     ;(e as any).code         = isNonRetryable ? 'content_policy' : 'api_error'
     ;(e as any).nonRetryable = isNonRetryable
     throw e
@@ -109,13 +142,13 @@ export async function pollKlingTask(opts: {
 }): Promise<{ done: boolean; videoUrl?: string; error?: string; nonRetryable?: boolean }> {
   const { apiKey, taskId } = opts
 
-  const res = await fetch(`https://api.klingai.com/v1/videos/text2video/${taskId}`, {
+  const res = await fetch(`${KLING_BASE}/v1/videos/text2video/${taskId}`, {
     method:  'GET',
     headers: { 'Authorization': `Bearer ${apiKey}` },
   })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
+    const err = await res.json().catch(() => ({})) as { message?: string }
     return { done: false, error: `Poll error ${res.status}: ${err?.message}` }
   }
 
@@ -132,10 +165,11 @@ export async function pollKlingTask(opts: {
   }
 
   if (status === 'failed') {
-    const isContentPolicy = data.data?.task_status_msg?.includes('content')
+    const msg = data.data?.task_status_msg ?? 'Unknown error'
+    const isContentPolicy = msg.toLowerCase().includes('content') || msg.toLowerCase().includes('policy')
     return {
       done:         true,
-      error:        `Kling สร้างวิดีโอไม่สำเร็จ: ${data.data?.task_status_msg ?? 'Unknown error'}`,
+      error:        `Kling สร้างวิดีโอไม่สำเร็จ: ${msg}`,
       nonRetryable: isContentPolicy,
     }
   }

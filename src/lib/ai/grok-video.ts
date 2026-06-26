@@ -1,9 +1,28 @@
 // src/lib/ai/grok-video.ts
 // xAI Grok Imagine Video generation
 // API: api.x.ai/v1/videos
-// Flow: POST /v1/videos/generations → poll /v1/videos/{request_id} → upload to Blob
+// Flow: POST /v1/videos/generations → poll GET /v1/videos/{request_id} → upload to Blob
+//
+// Model codes:
+//   'grok-imagine-video'     — text-to-video (รองรับ) ✅
+//   'grok-imagine-video-1.5' — image-to-video preview เท่านั้น (ไม่รองรับ text-to-video)
+//   → ถ้า UI ส่ง 1.5 มา เราจะ fallback ไป grok-imagine-video อัตโนมัติ
 
 import { put } from '@vercel/blob'
+
+// ---------------------------------------------------------------------------
+// Model mapping: DB code → xAI API model
+// ---------------------------------------------------------------------------
+
+const TEXT_TO_VIDEO_MODEL = 'grok-imagine-video'
+
+function resolveGrokModel(modelCode: string): string {
+  // grok-imagine-video-1.5 ไม่รองรับ text-to-video → fallback ไป grok-imagine-video
+  if (modelCode === 'grok-imagine-video-1.5' || modelCode === 'grok-imagine-video-1.5-preview') {
+    return TEXT_TO_VIDEO_MODEL
+  }
+  return modelCode || TEXT_TO_VIDEO_MODEL
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -11,12 +30,12 @@ import { put } from '@vercel/blob'
 
 interface GrokVideoCreateResponse {
   request_id: string
-  status:     string  // 'queued' | 'processing' | 'done' | 'failed' | 'expired'
+  status:     string
 }
 
 interface GrokVideoQueryResponse {
   request_id: string
-  status:     string
+  status:     string   // 'queued' | 'processing' | 'done' | 'failed' | 'expired'
   video?: {
     url:      string
     duration: number
@@ -31,15 +50,17 @@ interface GrokVideoQueryResponse {
 export async function startGrokVideoGeneration(opts: {
   apiKey:       string
   prompt:       string
-  modelCode:    string   // 'grok-imagine-video'
-  durationSecs: number   // 5 | 8 | 10
-  aspectRatio:  string   // '16:9' | '9:16' | '1:1'
-}): Promise<string> {  // returns request_id
+  modelCode:    string
+  durationSecs: number
+  aspectRatio:  string
+}): Promise<string> {
   const { apiKey, prompt, modelCode, durationSecs, aspectRatio } = opts
 
+  const apiModel = resolveGrokModel(modelCode)
+
   const body = {
-    model:        modelCode,
-    prompt:       prompt,
+    model:        apiModel,
+    prompt,
     duration:     durationSecs,
     aspect_ratio: aspectRatio,
     resolution:   '720p',
@@ -55,12 +76,12 @@ export async function startGrokVideoGeneration(opts: {
   })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    const isContentPolicy = res.status === 400 || err?.error?.includes('content')
+    const err = await res.json().catch(() => ({})) as { error?: string; message?: string }
+    const isContentPolicy = res.status === 400 || (err?.error ?? '').toLowerCase().includes('content')
     const e = new Error(
       isContentPolicy
         ? 'Prompt ไม่ผ่านนโยบายเนื้อหาของ xAI Grok — กรุณาแก้ไข prompt'
-        : `Grok Video API error ${res.status}: ${err?.error ?? 'Unknown error'}`
+        : `Grok Video API error ${res.status}: ${err?.error ?? err?.message ?? 'Unknown error'}`
     )
     ;(e as any).code         = isContentPolicy ? 'content_policy' : 'api_error'
     ;(e as any).nonRetryable = isContentPolicy
@@ -88,7 +109,7 @@ export async function pollGrokVideo(opts: {
   })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
+    const err = await res.json().catch(() => ({})) as { error?: string }
     return { done: false, error: `Poll error ${res.status}: ${err?.error}` }
   }
 
