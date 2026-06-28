@@ -1,166 +1,198 @@
 // src/lib/ai/veo.ts
-// Google Veo 3.1 video generation
-// API: generativelanguage.googleapis.com (Gemini Developer API)
-// Flow: generateVideo (async) → poll operationName → download → upload to Blob
+// Google Veo 3.1 via Gemini API (AI Studio Key ธรรมดา — ไม่ต้องใช้ Vertex AI)
+//
+// Endpoint: generativelanguage.googleapis.com/v1beta/models/{model}:predictLongRunning
+// Auth: x-goog-api-key header (AI Studio Key)
+//
+// Flow:
+//   1. POST :predictLongRunning → รับ operationName
+//   2. GET  :operations/{name}  → poll จนเสร็จ
+//   3. video bytes → upload → Vercel Blob
 
 import { put } from '@vercel/blob'
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+
+// Model codes ที่รองรับ
+const VALID_MODELS = [
+  'veo-3.1-generate-preview',
+  'veo-3.1-fast-generate-preview',
+  'veo-3.0-generate-preview',
+] as const
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface VeoGenerateResponse {
-  name: string  // operation name, e.g. "operations/abc123" — ใช้ poll
-}
-
-interface VeoOperationResponse {
+interface LongRunningOperation {
   name:     string
   done?:    boolean
   error?:   { code: number; message: string; status: string }
   response?: {
-    '@type':    string
-    generateVideoResponse: {
-      generatedSamples: Array<{
-        video: { uri: string }  // gs:// URI หรือ base64
-      }>
-    }
+    '@type':           string
+    generatedSamples?: Array<{
+      video?: {
+        uri?:              string
+        videoMetadata?:    { durationSeconds: number }
+      }
+      encodedVideo?: string   // base64
+      mimeType?:     string
+    }>
   }
 }
 
-// Error codes ที่ไม่ควร retry
-const NON_RETRYABLE_STATUSES = new Set([
-  'INVALID_ARGUMENT',
-  'PERMISSION_DENIED',
-  'RESOURCE_EXHAUSTED',
-  // Content policy rejection
-  'SAFETY',
-])
-
 // ---------------------------------------------------------------------------
-// Step 1: ส่ง prompt → รับ operation name
+// Step 1: ส่ง prompt → รับ operationName
 // ---------------------------------------------------------------------------
 
 export async function startVeoGeneration(opts: {
-  apiKey:        string
-  prompt:        string
+  apiKey:          string
+  modelCode:       string
+  prompt:          string
   negativePrompt?: string
-  durationSecs:  number
-  aspectRatio:   string  // '16:9' | '9:16' | '1:1'
-  modelCode:     string  // 'veo-3.0-generate-preview'
-}): Promise<string> {  // returns operationName
-  const { apiKey, prompt, negativePrompt, durationSecs, aspectRatio, modelCode } = opts
+  durationSecs:    number
+  aspectRatio:     string
+}): Promise<string> {
+  const { apiKey, prompt, negativePrompt, durationSecs, aspectRatio } = opts
+
+  // ใช้ model ที่ valid เท่านั้น
+  const modelCode = VALID_MODELS.includes(opts.modelCode as any)
+    ? opts.modelCode
+    : 'veo-3.1-generate-preview'
+
+  const url = `${GEMINI_BASE}/models/${modelCode}:predictLongRunning?key=${apiKey}`
 
   const body = {
-    model: `models/${modelCode}`,
-    instances: [{
-      prompt,
-      ...(negativePrompt ? { negativePrompt } : {}),
-    }],
+    instances: [
+      {
+        prompt,
+        ...(negativePrompt ? { negativePrompt } : {}),
+      },
+    ],
     parameters: {
       aspectRatio,
-      durationSeconds: durationSecs,
-      sampleCount: 1,
+      durationSeconds: String(durationSecs),
+      sampleCount:     1,
     },
   }
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${modelCode}:generateVideo?key=${apiKey}`,
-    {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-    }
-  )
+  const res = await fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+  })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    const status = err?.error?.status as string | undefined
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string; status?: string } }
+    const status  = err?.error?.status ?? ''
+    const message = err?.error?.message ?? 'Unknown error'
 
-    // Content policy rejection — ไม่ควร retry
-    if (status && NON_RETRYABLE_STATUSES.has(status)) {
-      const e = new Error(
-        status === 'SAFETY'
-          ? 'Prompt ไม่ผ่านนโยบายเนื้อหาของ Google Veo — กรุณาแก้ไข prompt แล้วลองใหม่'
-          : `Veo API ปฏิเสธ request: ${err?.error?.message ?? status}`
-      )
-      ;(e as any).code = 'content_policy'
-      ;(e as any).nonRetryable = true
-      throw e
-    }
-
-    throw new Error(`Veo API error ${res.status}: ${err?.error?.message ?? 'Unknown error'}`)
+    const isContentPolicy = status === 'INVALID_ARGUMENT' || message.toLowerCase().includes('safety')
+    const e = new Error(
+      isContentPolicy
+        ? 'Prompt ไม่ผ่านนโยบายเนื้อหาของ Google Veo — กรุณาแก้ไข prompt'
+        : status === 'PERMISSION_DENIED'
+        ? 'API Key ไม่มีสิทธิ์ใช้ Veo — ตรวจสอบว่า Key มาจาก AI Studio และมี Veo access'
+        : `Veo API error ${res.status}: ${message}`
+    )
+    ;(e as any).code         = isContentPolicy ? 'content_policy' : 'api_error'
+    ;(e as any).nonRetryable = isContentPolicy || status === 'PERMISSION_DENIED'
+    throw e
   }
 
-  const data: VeoGenerateResponse = await res.json()
+  const data = await res.json() as LongRunningOperation
   if (!data.name) throw new Error('Veo ไม่ return operation name')
   return data.name
 }
 
 // ---------------------------------------------------------------------------
-// Step 2: Poll operation จนเสร็จ (เรียกจาก Worker ในลูป)
+// Step 2: Poll operation จนเสร็จ
 // ---------------------------------------------------------------------------
 
 export async function pollVeoOperation(opts: {
   apiKey:        string
-  operationName: string  // e.g. 'operations/abc123'
-}): Promise<{ done: boolean; videoUri?: string; error?: string; nonRetryable?: boolean }> {
+  operationName: string
+}): Promise<{
+  done:          boolean
+  videoUri?:     string
+  videoBase64?:  string
+  error?:        string
+  nonRetryable?: boolean
+}> {
   const { apiKey, operationName } = opts
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`,
-    { method: 'GET' }
-  )
+  // operationName format: "operations/xxxx" หรือ full path
+  const opPath = operationName.startsWith('operations/')
+    ? operationName
+    : `operations/${operationName.split('/').pop()}`
+
+  const url = `${GEMINI_BASE}/${opPath}?key=${apiKey}`
+
+  const res = await fetch(url, {
+    method:  'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
+    const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
     return { done: false, error: `Poll error ${res.status}: ${err?.error?.message}` }
   }
 
-  const data: VeoOperationResponse = await res.json()
+  const data = await res.json() as LongRunningOperation
 
   if (!data.done) return { done: false }
 
   if (data.error) {
-    const isNonRetryable = NON_RETRYABLE_STATUSES.has(data.error.status)
+    const isNonRetryable = ['INVALID_ARGUMENT', 'PERMISSION_DENIED', 'SAFETY'].includes(data.error.status)
     return {
       done:         true,
-      error:        `Veo สร้างวิดีโอไม่สำเร็จ: ${data.error.message}`,
+      error:        `Veo error: ${data.error.message}`,
       nonRetryable: isNonRetryable,
     }
   }
 
-  const uri = data.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri
-  if (!uri) return { done: true, error: 'Veo ไม่ return video URI' }
+  const sample = data.response?.generatedSamples?.[0]
+  if (!sample) return { done: true, error: 'Veo ไม่ return video data' }
 
-  return { done: true, videoUri: uri }
+  return {
+    done:         true,
+    videoUri:     sample.video?.uri,
+    videoBase64:  sample.encodedVideo,
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Step 3: Download video from Google storage → upload ไป Vercel Blob
+// Step 3: Upload to Vercel Blob
 // ---------------------------------------------------------------------------
 
 export async function uploadVeoVideoToBlob(opts: {
-  apiKey:    string
-  videoUri:  string   // URI จาก Veo (อาจเป็น https หรือ base64 data URI)
-  jobId:     string
-}): Promise<string> {  // returns Vercel Blob public URL
-  const { apiKey, videoUri, jobId } = opts
+  apiKey?:       string
+  videoUri?:     string
+  videoBase64?:  string
+  jobId:         string
+}): Promise<string> {
+  const { apiKey, videoUri, videoBase64, jobId } = opts
 
   let videoBuffer: Buffer
 
-  if (videoUri.startsWith('data:')) {
-    // base64 data URI
-    const base64 = videoUri.split(',')[1]
-    videoBuffer = Buffer.from(base64, 'base64')
-  } else {
-    // https URL — download ก่อน (แนบ API key ถ้าเป็น googleapis.com)
-    const downloadUrl = videoUri.includes('googleapis.com')
+  if (videoBase64) {
+    // กรณีที่ได้ base64 กลับมาโดยตรง
+    videoBuffer = Buffer.from(videoBase64, 'base64')
+  } else if (videoUri) {
+    // กรณีที่ได้ URI — ต้อง download พร้อม API Key
+    const dlUrl = videoUri.includes('?')
       ? `${videoUri}&key=${apiKey}`
-      : videoUri
+      : `${videoUri}?key=${apiKey}`
 
-    const dlRes = await fetch(downloadUrl)
-    if (!dlRes.ok) throw new Error(`ดาวน์โหลดวิดีโอล้มเหลว: ${dlRes.status}`)
+    const dlRes = await fetch(dlUrl)
+    if (!dlRes.ok) throw new Error(`ดาวน์โหลดวิดีโอจาก Veo ล้มเหลว: ${dlRes.status}`)
     videoBuffer = Buffer.from(await dlRes.arrayBuffer())
+  } else {
+    throw new Error('ไม่มีข้อมูลวิดีโอจาก Veo')
   }
 
   const filename = `videos/${jobId}-${Date.now()}.mp4`
