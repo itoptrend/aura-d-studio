@@ -116,7 +116,7 @@ export async function startOpenRouterVideo(opts: {
       res.status === 402
         ? 'OpenRouter: Credits ไม่พอ — กรุณาเติม credits ที่ openrouter.ai'
         : res.status === 403
-        ? 'OpenRouter: API Key ไม่มีสิทธิ์ — กรุณาตรวจสอบ Key'
+        ? 'OpenRouter: Prompt อาจโดน content filter หรือ Key ไม่มีสิทธิ์ — ลองแก้ prompt หรือตรวจสอบ Key/Credits ที่ openrouter.ai'
         : msg
     )
     ;(e as any).code         = isNonRetryable ? 'content_policy' : 'api_error'
