@@ -1,21 +1,28 @@
 // src/app/api/workflows/generate-video/run/route.ts
-// POST — รับ form data จาก /video-generate → สร้าง VideoJob ใน DB → enqueue BullMQ → return jobId
+// POST — รับ form data จาก /video-generate → สร้าง VideoJob (status: pending) ใน DB
+// จากนั้น Vercel Cron (/api/cron/process-video-jobs) จะหยิบไปประมวลผลเอง
+// *ไม่ใช้ BullMQ/Redis แล้ว* — บน Vercel serverless ไม่มี worker process รันค้างไว้
 
 import { NextResponse } from 'next/server'
 import { prisma }        from '@/lib/db'
 import { getCurrentTeamId } from '@/lib/session'
-import { getVideoQueue }    from '@/lib/queue/videoQueue'
-import type { VideoJobPayload } from '@/lib/queue/videoQueue'
 
-// ---------------------------------------------------------------------------
-// POST
-// ---------------------------------------------------------------------------
+// duration ที่แต่ละ provider/model รองรับ (ปรับค่าให้ valid ก่อนบันทึก)
+function normalizeDurationForJob(provider: string, modelCode: string, secs: number): number {
+  if (provider === 'openrouter') {
+    if (modelCode.includes('kling-video-o1')) return secs <= 7 ? 5 : 10
+    if (modelCode.includes('kling'))          return Math.min(15, Math.max(3, secs))
+    if (modelCode.includes('veo'))            return Math.min(8,  Math.max(4, secs))
+  }
+  if (provider === 'kling')  return secs <= 7 ? 5 : 10          // Kling official: 5/10
+  if (provider === 'google') return Math.min(8, Math.max(4, secs)) // Veo: 4-8
+  return secs
+}
 
 export async function POST(req: Request): Promise<NextResponse> {
   const teamId = await getCurrentTeamId()
   if (!teamId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // — Parse body
   let body: {
     prompt:          string
     negativePrompt?: string
@@ -32,15 +39,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { prompt, negativePrompt, aspectRatio, durationSecs, credentialId, provider, modelCode } = body
+  const { prompt, negativePrompt, aspectRatio, durationSecs, credentialId, modelCode } = body
 
-  // — Validation
   if (!prompt?.trim())    return NextResponse.json({ error: 'กรุณาใส่ prompt'   }, { status: 400 })
   if (!credentialId)      return NextResponse.json({ error: 'กรุณาเลือก AI Key' }, { status: 400 })
   if (!modelCode?.trim()) return NextResponse.json({ error: 'กรุณาเลือกโมเดล'  }, { status: 400 })
-  if (!provider?.trim())  return NextResponse.json({ error: 'ไม่ระบุ provider'  }, { status: 400 })
 
-  // — ตรวจ credential เป็นของ team นี้จริงๆ และ status = active
   const credential = await prisma.credential.findFirst({
     where: { id: credentialId, teamId, status: 'active' },
     select: { id: true, providerCode: true },
@@ -52,7 +56,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     )
   }
 
-  // — สร้าง VideoJob record ใน DB
+  const safeDuration = normalizeDurationForJob(
+    credential.providerCode,
+    modelCode,
+    Number(durationSecs) || 8
+  )
+
   const videoJob = await prisma.videoJob.create({
     data: {
       teamId,
@@ -61,29 +70,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       prompt:         prompt.trim(),
       negativePrompt: negativePrompt?.trim() || null,
       aspectRatio:    aspectRatio ?? '16:9',
-      durationSecs:   Number(durationSecs) || 8,
+      durationSecs:   safeDuration,
       credentialId,
       status:         'pending',
     },
-  })
-
-  // — Enqueue งานเข้า BullMQ
-  const queue = getVideoQueue()
-
-  const payload: VideoJobPayload = {
-    videoJobId:     videoJob.id,
-    teamId,
-    provider:       credential.providerCode as VideoJobPayload['provider'],
-    modelCode,
-    prompt:         prompt.trim(),
-    negativePrompt: negativePrompt?.trim() || undefined,
-    aspectRatio:    aspectRatio ?? '16:9',
-    durationSecs:   Number(durationSecs) || 8,
-    credentialId,
-  }
-
-  await queue.add('generate-video', payload, {
-    jobId: videoJob.id,   // ใช้ videoJobId เป็น BullMQ job ID ด้วย
   })
 
   return NextResponse.json({ jobId: videoJob.id })

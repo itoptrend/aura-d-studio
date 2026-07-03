@@ -33,6 +33,7 @@ const POLL_INTERVAL_MS = 8_000
 // Note แสดงใต้ dropdown (ไม่มี warning อีกต่อไป — Veo ใช้ Gemini Key ได้แล้ว)
 const PROVIDER_NOTES: Record<string, { color: string; text: string }> = {
   kling: { color: 'text-[#9C9690]', text: '📹 Kling รองรับ 5 หรือ 10 วินาที — เลือก "8 วินาที" จะปรับเป็น 10 วินาทีอัตโนมัติ' },
+  openrouter: { color: 'text-[#9C9690]', text: '🔀 OpenRouter — Kling O1 รองรับ 5/10 วินาที (เลือก 8 จะปรับเป็น 10 อัตโนมัติ), Veo รองรับ 4-8 วินาที' },
   xai:   { color: 'text-[#9C9690]', text: '🚀 xAI Grok Imagine Video — text-to-video คุณภาพสูง' },
   google: { color: 'text-emerald-400', text: '✅ Veo 3.1 พร้อมใช้งานผ่าน Gemini API Key' },
 }

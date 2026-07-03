@@ -7,6 +7,10 @@ import { startKlingGeneration, pollKlingTask, uploadKlingVideoToBlob }          
 import { startGrokVideoGeneration, pollGrokVideo, uploadGrokVideoToBlob }                     from '@/lib/ai/grok-video'
 import { startOpenRouterVideo, pollOpenRouterVideo, uploadOpenRouterVideoToBlob }             from '@/lib/ai/openrouter-video'
 
+// กัน function timeout ตอนดาวน์โหลดวิดีโอ + อัปโหลด Blob (ไฟล์วิดีโอใหญ่)
+export const maxDuration = 300
+export const dynamic     = 'force-dynamic'
+
 const MAX_JOBS_PER_RUN = 2
 const STALL_MINUTES    = 10
 
@@ -26,6 +30,17 @@ export async function GET(req: Request): Promise<NextResponse> {
     await prisma.videoJob.updateMany({
       where: { status: 'running', startedAt: { lt: stalledCutoff } },
       data:  { status: 'stalled', stalledAt: new Date() },
+    })
+
+    // ปิดงานที่ retry ครบแล้ว (attempts >= 3) ไม่ให้ค้าง pending ตลอดไป
+    await prisma.videoJob.updateMany({
+      where: { status: 'pending', attempts: { gte: 3 } },
+      data:  {
+        status: 'failed',
+        errorMessage: 'ลองใหม่ครบ 3 ครั้งแล้วยังไม่สำเร็จ — กรุณาตรวจสอบ API Key / prompt',
+        errorCode: 'max_attempts',
+        finishedAt: new Date(),
+      },
     })
 
     // Pending jobs

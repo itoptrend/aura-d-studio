@@ -29,6 +29,30 @@ function resolveModel(modelCode: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Duration normalization — แต่ละโมเดลรองรับ duration ไม่เหมือนกัน
+// (เช็คได้จาก GET /api/v1/videos/models)
+//   kwaivgi/kling-video-o1  → 5 หรือ 10 วินาที เท่านั้น
+//   kwaivgi/kling-v3.0-*    → 3–15 วินาที
+//   google/veo-3.1-*        → 4–8 วินาที
+// ---------------------------------------------------------------------------
+
+function normalizeDuration(apiModel: string, secs: number): number {
+  // Kling Video O1: รับแค่ 5 หรือ 10 — ปัดไปค่าที่ใกล้ที่สุด
+  if (apiModel === 'kwaivgi/kling-video-o1') {
+    return secs <= 7 ? 5 : 10
+  }
+  // Kling v3.0 Pro/Std: 3–15 วินาที
+  if (apiModel.startsWith('kwaivgi/kling-v3')) {
+    return Math.min(15, Math.max(3, Math.round(secs)))
+  }
+  // Veo 3.1 (Fast/Lite): 4–8 วินาที
+  if (apiModel.startsWith('google/veo')) {
+    return Math.min(8, Math.max(4, Math.round(secs)))
+  }
+  return Math.round(secs)
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -60,11 +84,12 @@ export async function startOpenRouterVideo(opts: {
   const { apiKey, modelCode, prompt, negativePrompt, durationSecs, aspectRatio } = opts
 
   const apiModel = resolveModel(modelCode)
+  const duration = normalizeDuration(apiModel, durationSecs)
 
   const body: Record<string, unknown> = {
     model:        apiModel,
     prompt,
-    duration:     durationSecs,
+    duration,
     aspect_ratio: aspectRatio,
     resolution:   '720p',
   }
