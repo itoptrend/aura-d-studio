@@ -118,10 +118,13 @@ export default function AssetsPage() {
     }
   }
 
-  // Get unique types for filter buttons
+  // Get types for filter buttons — แสดงประเภทหลักครบเสมอ (รวม "วิดีโอ")
+  // และเติมประเภทอื่นๆ ที่พบในคลังต่อท้าย (เช่น storyboard)
   const availableTypes = useMemo(() => {
-    const types = Array.from(new Set(assets.map((a) => a.type)));
-    return types;
+    const CORE_TYPES = ['document', 'image', 'audio', 'video'];
+    const found = Array.from(new Set(assets.map((a) => a.type)));
+    const extras = found.filter((t) => !CORE_TYPES.includes(t));
+    return [...CORE_TYPES, ...extras];
   }, [assets]);
 
   // Apply search + filter + sort
