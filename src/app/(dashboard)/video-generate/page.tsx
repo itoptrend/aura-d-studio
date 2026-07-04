@@ -195,6 +195,39 @@ export default function VideoGeneratePage() {
             className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50" />
         </div>
 
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-[#9C9690] mb-1.5">AI ที่ใช้</label>
+            <select required value={values.credentialId}
+              onChange={e => { setField('credentialId', e.target.value); setField('modelCode', '') }}
+              disabled={isRunning}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50">
+              <option value="">เลือก AI</option>
+              {credentials.map(c => (
+                <option key={c.id} value={c.id}>{c.displayName}</option>
+              ))}
+            </select>
+          </div>
+          {selectedProvider && videoModels.length > 0 && (
+            <div>
+              <label className="block text-xs text-[#9C9690] mb-1.5">โมเดล</label>
+              <select required value={values.modelCode}
+                onChange={e => setField('modelCode', e.target.value)}
+                disabled={isRunning}
+                className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50">
+                <option value="">เลือกโมเดล</option>
+                {videoModels.map(m => (
+                  <option key={m.modelCode} value={m.modelCode}>{m.displayName}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {providerNote && (
+          <p className={`text-xs ${providerNote.color}`}>{providerNote.text}</p>
+        )}
+
         <div>
           <label className="block text-xs text-[#9C9690] mb-2">สัดส่วนวิดีโอ</label>
           <div className="flex items-end gap-3">
@@ -235,39 +268,6 @@ export default function VideoGeneratePage() {
             ))}
           </div>
         </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-[#9C9690] mb-1.5">AI ที่ใช้</label>
-            <select required value={values.credentialId}
-              onChange={e => { setField('credentialId', e.target.value); setField('modelCode', '') }}
-              disabled={isRunning}
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50">
-              <option value="">เลือก AI</option>
-              {credentials.map(c => (
-                <option key={c.id} value={c.id}>{c.displayName}</option>
-              ))}
-            </select>
-          </div>
-          {selectedProvider && videoModels.length > 0 && (
-            <div>
-              <label className="block text-xs text-[#9C9690] mb-1.5">โมเดล</label>
-              <select required value={values.modelCode}
-                onChange={e => setField('modelCode', e.target.value)}
-                disabled={isRunning}
-                className="w-full rounded-xl px-3.5 py-2.5 text-sm disabled:opacity-50">
-                <option value="">เลือกโมเดล</option>
-                {videoModels.map(m => (
-                  <option key={m.modelCode} value={m.modelCode}>{m.displayName}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        {providerNote && (
-          <p className={`text-xs ${providerNote.color}`}>{providerNote.text}</p>
-        )}
 
         <div className="flex gap-3">
           <button type="submit"
