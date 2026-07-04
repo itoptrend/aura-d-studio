@@ -270,6 +270,10 @@ export default function VideoGeneratePage() {
           </button>
         </div>
 
+        <p className="text-[10px] text-amber-400/70 text-center">
+          ⏳ วิดีโอที่สร้างจะเก็บในคลังไฟล์ 7 วัน — กรุณาดาวน์โหลดเก็บไว้ในเครื่องก่อนหมดอายุ
+        </p>
+
         {isRunning && (
           <p className="text-[10px] text-[#9C9690] text-center">
             กำลังประมวลผล — ระบบทำงานทุก 1 นาที คาดว่าเสร็จใน 3-10 นาที

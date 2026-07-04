@@ -10,6 +10,7 @@ interface AssetRow {
   title: string;
   isFavorited: boolean;
   createdAt: string;
+  expiresAt: string | null;
   hasContent: boolean;
   thumbnail: string | null;
   isAudio: boolean;
@@ -22,6 +23,17 @@ const TYPE_EMOJI: Record<string, string> = {
 const TYPE_LABEL: Record<string, string> = {
   document: 'เอกสาร', image: 'รูปภาพ', audio: 'เสียง', video: 'วิดีโอ', storyboard: 'Storyboard'
 };
+
+
+// แสดงเวลาที่เหลือก่อนไฟล์หมดอายุ เช่น "เหลือ 6 วัน" / "เหลือ 5 ชม." — คืน null ถ้าเก็บถาวร
+function expiryBadge(expiresAt: string | null): { text: string; urgent: boolean } | null {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return { text: 'หมดอายุแล้ว', urgent: true };
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 24) return { text: `⏳ เหลือ ${Math.max(1, hours)} ชม.`, urgent: true };
+  return { text: `⏳ เหลือ ${Math.floor(hours / 24)} วัน`, urgent: false };
+}
 
 export default function AssetsPage() {
   const { success, error: toastError } = useToast();
@@ -147,6 +159,11 @@ export default function AssetsPage() {
 
   return (
     <div>
+      {/* Retention policy notice */}
+      <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-xs text-amber-300/90">
+        ⏳ ไฟล์รูปภาพ เสียง และวิดีโอ จะถูกเก็บไว้ <b>7 วัน</b>หลังสร้าง — กรุณากดดาวน์โหลด (↓) เก็บไว้ในเครื่องก่อนหมดอายุ ส่วนเอกสารเก็บให้ถาวร
+      </div>
+
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
@@ -332,6 +349,9 @@ export default function AssetsPage() {
                 <p className="text-xs text-[#9C9690] mt-0.5">
                   {TYPE_LABEL[a.type] ?? a.type} · {new Date(a.createdAt).toLocaleString('th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   {a.sourceNodeExecution && ` · ~${a.sourceNodeExecution.costCredit} เครดิต`}
+                  {(() => { const b = expiryBadge(a.expiresAt); return b ? (
+                    <span className={`ml-2 ${b.urgent ? 'text-red-400 font-semibold' : 'text-amber-400/80'}`}>{b.text}</span>
+                  ) : null; })()}
                 </p>
               </div>
             ) : (
@@ -340,6 +360,9 @@ export default function AssetsPage() {
                 <p className="text-xs text-[#9C9690] mt-0.5">
                   {TYPE_LABEL[a.type] ?? a.type} · {new Date(a.createdAt).toLocaleString('th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   {a.sourceNodeExecution && ` · ~${a.sourceNodeExecution.costCredit} เครดิต`}
+                  {(() => { const b = expiryBadge(a.expiresAt); return b ? (
+                    <span className={`ml-2 ${b.urgent ? 'text-red-400 font-semibold' : 'text-amber-400/80'}`}>{b.text}</span>
+                  ) : null; })()}
                 </p>
               </Link>
             )}

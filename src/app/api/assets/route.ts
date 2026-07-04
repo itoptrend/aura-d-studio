@@ -7,13 +7,14 @@ export async function GET() {
   if (!teamId) return NextResponse.json({ error: 'ยังไม่ได้เข้าสู่ระบบ' }, { status: 401 });
 
   const assets = await prisma.asset.findMany({
-    where: { teamId },
+    where: { teamId, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
     select: {
       id: true,
       type: true,
       title: true,
       isFavorited: true,
       createdAt: true,
+      expiresAt: true,
       contentText: true,
       sourceNodeExecution: { select: { costCredit: true } }
     },
@@ -25,7 +26,7 @@ export async function GET() {
   // audio/document: เก็บแค่ flag ว่ามีข้อมูลหรือไม่
   const trimmed = assets.map((a: {
     id: string; type: string; title: string; isFavorited: boolean;
-    createdAt: Date; contentText: string | null;
+    createdAt: Date; expiresAt: Date | null; contentText: string | null;
     sourceNodeExecution: { costCredit: unknown } | null;
   }) => ({
     id: a.id,
@@ -33,6 +34,7 @@ export async function GET() {
     title: a.title,
     isFavorited: a.isFavorited,
     createdAt: a.createdAt,
+    expiresAt: a.expiresAt,
     sourceNodeExecution: a.sourceNodeExecution,
     hasContent: !!a.contentText,
     thumbnail: a.contentText?.startsWith('data:image') ? a.contentText : null,

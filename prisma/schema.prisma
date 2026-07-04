@@ -256,12 +256,14 @@ model Asset {
   sourceRunId           String?   @map("source_run_id")
   isFavorited           Boolean   @default(false) @map("is_favorited")
   favoritedAt           DateTime? @map("favorited_at")
+  expiresAt             DateTime? @map("expires_at")          // null = เก็บถาวร
   createdAt             DateTime  @default(now()) @map("created_at")
 
   team                Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
   sourceNodeExecution NodeExecution? @relation(fields: [sourceNodeExecutionId], references: [id])
   sourceRun           Run?           @relation(fields: [sourceRunId], references: [id])
 
+  @@index([expiresAt])
   @@map("asset")
 }
 

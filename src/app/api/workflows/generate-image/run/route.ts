@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getAssetExpiry } from '@/lib/retention';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { getCurrentTeamId } from '@/lib/session';
@@ -114,7 +115,8 @@ export async function POST(req: Request) {
         title: prompt.slice(0, 80),
         contentText: result.dataUrl, // base64 data URL
         sourceNodeExecutionId: nodeExecution.id,
-        sourceRunId: run.id
+        sourceRunId: run.id,
+        expiresAt: getAssetExpiry()
       }
     });
 

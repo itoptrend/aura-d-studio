@@ -1,5 +1,7 @@
 // src/app/api/cron/process-video-jobs/route.ts
 import { NextResponse }    from 'next/server'
+import { getAssetExpiry } from '@/lib/retention'
+import { del as blobDel } from '@vercel/blob'
 import { prisma }          from '@/lib/db'
 import { decryptSecret }   from '@/lib/encryption'
 import { startVeoGeneration, pollVeoOperation, uploadVeoVideoToBlob }                         from '@/lib/ai/veo'
@@ -42,6 +44,26 @@ export async function GET(req: Request): Promise<NextResponse> {
         finishedAt: new Date(),
       },
     })
+
+    // ---- นโยบายเก็บไฟล์: ลบ asset ที่หมดอายุ (สูงสุด 20 ตัว/รอบ) ----
+    const expiredAssets = await prisma.asset.findMany({
+      where: { expiresAt: { lt: new Date() } },
+      take: 20,
+      select: { id: true, fileUrl: true, thumbnailUrl: true },
+    })
+    if (expiredAssets.length > 0) {
+      // ลบไฟล์จริงออกจาก Vercel Blob ก่อน (เฉพาะ URL ที่เป็น blob storage)
+      const blobUrls = expiredAssets
+        .flatMap((a: { fileUrl: string | null; thumbnailUrl: string | null }) => [a.fileUrl, a.thumbnailUrl])
+        .filter((u: string | null): u is string => !!u && u.includes('blob.vercel-storage.com'))
+      for (const url of blobUrls) {
+        try { await blobDel(url) } catch (e) { console.error('[cron] blob delete failed:', url, e) }
+      }
+      await prisma.asset.deleteMany({
+        where: { id: { in: expiredAssets.map((a: { id: string }) => a.id) } },
+      })
+      console.log(`[cron] expired assets cleaned: ${expiredAssets.length}`)
+    }
 
     // Pending jobs
     const pendingJobs = await prisma.videoJob.findMany({
@@ -242,6 +264,7 @@ async function pollJob(job: {
         type:    'video',
         title:   `วิดีโอ: ${job.prompt.slice(0, 60)}${job.prompt.length > 60 ? '…' : ''}`,
         fileUrl: blobUrl,
+        expiresAt: getAssetExpiry(),
       },
     })
 
