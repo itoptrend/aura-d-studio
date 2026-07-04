@@ -4,6 +4,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useToast } from '@/components/Toast'
+import { getSupportedDurations } from '@/lib/videoModelCaps'
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist'
 
 interface Credential {
@@ -24,16 +25,12 @@ const ASPECT_RATIOS = [
   { value: '9:16', label: '9:16', w: 23, h: 40, desc: 'Portrait — TikTok / Reels' },
   { value: '1:1',  label: '1:1',  w: 36, h: 36, desc: 'Square — โซเชียลทั่วไป' },
 ]
-const DURATION_OPTIONS = [
-  { value: '5', label: '5 วินาที' },
-  { value: '8', label: '8 วินาที' },
-]
 const POLL_INTERVAL_MS = 8_000
 
 // Note แสดงใต้ dropdown (ไม่มี warning อีกต่อไป — Veo ใช้ Gemini Key ได้แล้ว)
 const PROVIDER_NOTES: Record<string, { color: string; text: string }> = {
-  kling: { color: 'text-[#9C9690]', text: '📹 Kling รองรับ 5 หรือ 10 วินาที — เลือก "8 วินาที" จะปรับเป็น 10 วินาทีอัตโนมัติ' },
-  openrouter: { color: 'text-[#9C9690]', text: '🔀 OpenRouter — Kling O1 รองรับ 5/10 วินาที (เลือก 8 จะปรับเป็น 10 อัตโนมัติ), Veo รองรับ 4-8 วินาที' },
+  kling: { color: 'text-[#9C9690]', text: '📹 Kling — ความยาวจะแสดงเฉพาะค่าที่โมเดลรองรับ' },
+  openrouter: { color: 'text-[#9C9690]', text: '🔀 OpenRouter — ความยาวจะแสดงเฉพาะค่าที่โมเดลที่เลือกรองรับ' },
   xai:   { color: 'text-[#9C9690]', text: '🚀 xAI Grok Imagine Video — text-to-video คุณภาพสูง' },
   google: { color: 'text-emerald-400', text: '✅ Veo 3.1 พร้อมใช้งานผ่าน Gemini API Key' },
 }
@@ -72,6 +69,22 @@ export default function VideoGeneratePage() {
   const selectedProvider   = providers.find(p => p.code === selectedCredential?.providerCode)
   const videoModels        = selectedProvider?.models.filter(m => m.capability === 'video') ?? []
   const providerNote       = selectedCredential ? PROVIDER_NOTES[selectedCredential.providerCode] : undefined
+
+  // ความยาวที่เลือกได้ ขึ้นกับโมเดลที่เลือก — แสดงเฉพาะค่าที่ AI ตัวนั้นทำได้จริง
+  const durationOptions = getSupportedDurations(
+    selectedCredential?.providerCode ?? '',
+    values.modelCode
+  )
+
+  // ถ้าค่าที่เลือกอยู่ไม่รองรับกับโมเดลใหม่ ให้เด้งไปค่าที่ใกล้ที่สุดอัตโนมัติ
+  useEffect(() => {
+    const cur = Number(values.durationSecs)
+    if (!durationOptions.includes(cur)) {
+      const nearest = durationOptions.reduce((best, c) =>
+        Math.abs(c - cur) < Math.abs(best - cur) ? c : best, durationOptions[0])
+      setField('durationSecs', String(nearest))
+    }
+  }, [values.modelCode, selectedCredential?.providerCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
@@ -208,16 +221,16 @@ export default function VideoGeneratePage() {
         <div>
           <label className="block text-xs text-[#9C9690] mb-2">ความยาว</label>
           <div className="flex gap-3">
-            {DURATION_OPTIONS.map(d => (
-              <button key={d.value} type="button"
-                onClick={() => setField('durationSecs', d.value)}
+            {durationOptions.map(d => (
+              <button key={d} type="button"
+                onClick={() => setField('durationSecs', String(d))}
                 disabled={isRunning}
                 className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-colors disabled:opacity-50 ${
-                  values.durationSecs === d.value
+                  values.durationSecs === String(d)
                     ? 'border-gold bg-gold/10 text-gold'
                     : 'border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690]'
                 }`}>
-                {d.label}
+                {d} วินาที
               </button>
             ))}
           </div>

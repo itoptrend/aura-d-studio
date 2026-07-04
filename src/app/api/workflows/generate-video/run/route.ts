@@ -6,18 +6,8 @@
 import { NextResponse } from 'next/server'
 import { prisma }        from '@/lib/db'
 import { getCurrentTeamId } from '@/lib/session'
+import { snapDuration } from '@/lib/videoModelCaps'
 
-// duration ที่แต่ละ provider/model รองรับ (ปรับค่าให้ valid ก่อนบันทึก)
-function normalizeDurationForJob(provider: string, modelCode: string, secs: number): number {
-  if (provider === 'openrouter') {
-    if (modelCode.includes('kling-video-o1')) return secs <= 7 ? 5 : 10
-    if (modelCode.includes('kling'))          return Math.min(15, Math.max(3, secs))
-    if (modelCode.includes('veo'))            return Math.min(8,  Math.max(4, secs))
-  }
-  if (provider === 'kling')  return secs <= 7 ? 5 : 10          // Kling official: 5/10
-  if (provider === 'google') return Math.min(8, Math.max(4, secs)) // Veo: 4-8
-  return secs
-}
 
 export async function POST(req: Request): Promise<NextResponse> {
   const teamId = await getCurrentTeamId()
@@ -56,7 +46,8 @@ export async function POST(req: Request): Promise<NextResponse> {
     )
   }
 
-  const safeDuration = normalizeDurationForJob(
+  // ปรับ duration ให้ตรงกับที่โมเดลรองรับ (ตารางเดียวกับที่ UI ใช้แสดงปุ่ม)
+  const safeDuration = snapDuration(
     credential.providerCode,
     modelCode,
     Number(durationSecs) || 8
