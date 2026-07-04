@@ -291,6 +291,10 @@ model VideoJob {
   aspectRatio    String         @default("16:9") @map("aspect_ratio") // '16:9' | '9:16' | '1:1'
   credentialId   String?        @map("credential_id")        // Credential ที่ใช้
 
+  // สำหรับงาน Lip Sync (modelCode: 'kling-lip-sync')
+  inputVideoUrl  String?        @map("input_video_url")      // วิดีโอต้นทางที่จะขยับปาก
+  inputAudioUrl  String?        @map("input_audio_url")      // ไฟล์เสียงพูด (โหมด audio)
+
   status         VideoJobStatus @default(pending)
   attempts       Int            @default(0)                  // จำนวนครั้งที่ลองแล้ว
   maxAttempts    Int            @default(3) @map("max_attempts")

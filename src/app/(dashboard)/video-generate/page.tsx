@@ -4,7 +4,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useToast } from '@/components/Toast'
-import { getSupportedDurations } from '@/lib/videoModelCaps'
+import { getSupportedDurations, hasNativeAudio } from '@/lib/videoModelCaps'
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist'
 
 interface Credential {
@@ -226,6 +226,18 @@ export default function VideoGeneratePage() {
 
         {providerNote && (
           <p className={`text-xs ${providerNote.color}`}>{providerNote.text}</p>
+        )}
+
+        {values.modelCode && (
+          hasNativeAudio(selectedCredential?.providerCode ?? '', values.modelCode) ? (
+            <p className="text-xs text-emerald-400">
+              🔊 โมเดลนี้สร้างเสียงในตัว — ใส่บทพูดในเครื่องหมายคำพูดใน prompt ได้เลย เช่น She says: &quot;ผิวสวยใสใน 7 วัน&quot;
+            </p>
+          ) : (
+            <p className="text-xs text-[#9C9690]">
+              🔇 โมเดลนี้ให้ภาพอย่างเดียว — เพิ่มเสียงพูดตรงปากภายหลังได้ที่เมนู <Link href="/lipsync" className="underline text-gold">Lip Sync</Link>
+            </p>
+          )
         )}
 
         <div>

@@ -184,6 +184,103 @@ export async function pollKlingTask(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Lip Sync — เอาวิดีโอที่มีอยู่ + เสียงพูด (หรือข้อความ) → ขยับปากตัวละครให้ตรงเสียง
+// Endpoint: POST /v1/videos/lip-sync → poll GET /v1/videos/lip-sync/{task_id}
+// โหมด audio2video: ใช้ไฟล์เสียง (รองรับทุกภาษา รวมไทย — แนะนำสำหรับพากย์ไทย)
+// โหมด text2video:  Kling อ่านข้อความให้เอง (รองรับเฉพาะจีน/อังกฤษ, สูงสุด 120 ตัวอักษร)
+// ---------------------------------------------------------------------------
+
+export async function startKlingLipSync(opts: {
+  apiKey:    string
+  videoUrl:  string
+  audioUrl?: string           // โหมด audio
+  text?:     string           // โหมด text (en/zh เท่านั้น)
+  voiceLanguage?: 'en' | 'zh'
+}): Promise<string> {
+  const { apiKey, videoUrl, audioUrl, text, voiceLanguage } = opts
+
+  const input: Record<string, unknown> = { video_url: videoUrl }
+  if (audioUrl) {
+    input.mode       = 'audio2video'
+    input.audio_type = 'url'
+    input.audio_url  = audioUrl
+  } else if (text) {
+    input.mode           = 'text2video'
+    input.text           = text.slice(0, 120)
+    input.voice_language = voiceLanguage ?? 'en'
+    input.voice_speed    = 1.0
+  } else {
+    const e = new Error('Lip Sync ต้องมีไฟล์เสียงหรือข้อความอย่างใดอย่างหนึ่ง')
+    ;(e as any).nonRetryable = true
+    throw e
+  }
+
+  const res = await fetch(`${KLING_BASE}/v1/videos/lip-sync`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ input }),
+  })
+
+  const data: KlingCreateResponse = await res.json()
+
+  if (!res.ok || data.code !== 0) {
+    const isNonRetryable = NON_RETRYABLE_CODES.has(data.code)
+    const message =
+      data.code === 1102 ? 'เนื้อหาไม่ผ่านนโยบายของ Kling AI'
+      : data.code === 1103 ? 'Credits ของ Kling AI ไม่เพียงพอ — กรุณาเติม credits'
+      : data.code === 1101 ? `Kling Lip Sync: parameter ไม่ถูกต้อง — ${data.message} (เช็คว่า URL วิดีโอ/เสียงเข้าถึงได้สาธารณะ, วิดีโอ 2-60 วิ ≤100MB, เสียง mp3/wav/m4a ≤5MB)`
+      : `Kling Lip Sync error ${data.code}: ${data.message}`
+
+    const e = new Error(message)
+    ;(e as any).code         = isNonRetryable ? 'content_policy' : 'api_error'
+    ;(e as any).nonRetryable = isNonRetryable
+    throw e
+  }
+
+  if (!data.data?.task_id) throw new Error('Kling Lip Sync ไม่ return task_id')
+  return data.data.task_id
+}
+
+export async function pollKlingLipSync(opts: {
+  apiKey: string
+  taskId: string
+}): Promise<{ done: boolean; videoUrl?: string; error?: string; nonRetryable?: boolean }> {
+  const { apiKey, taskId } = opts
+
+  const res = await fetch(`${KLING_BASE}/v1/videos/lip-sync/${taskId}`, {
+    method:  'GET',
+    headers: { 'Authorization': `Bearer ${apiKey}` },
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string }
+    return { done: false, error: `Poll error ${res.status}: ${err?.message}` }
+  }
+
+  const data: KlingQueryResponse = await res.json()
+  if (data.code !== 0) return { done: true, error: `Kling error ${data.code}: ${data.message}` }
+
+  const status = data.data?.task_status
+  if (status === 'submitted' || status === 'processing') return { done: false }
+
+  if (status === 'failed') {
+    const msg = data.data?.task_status_msg ?? 'Unknown error'
+    return { done: true, error: `Lip Sync ไม่สำเร็จ: ${msg}`, nonRetryable: msg.toLowerCase().includes('policy') }
+  }
+
+  if (status === 'succeed') {
+    const videoUrl = data.data?.task_result?.videos?.[0]?.url
+    if (!videoUrl) return { done: true, error: 'Kling ไม่ return video URL' }
+    return { done: true, videoUrl }
+  }
+
+  return { done: false }
+}
+
+// ---------------------------------------------------------------------------
 // Step 3: Download video → upload to Vercel Blob
 // ---------------------------------------------------------------------------
 

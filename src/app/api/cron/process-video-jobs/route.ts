@@ -5,7 +5,7 @@ import { del as blobDel } from '@vercel/blob'
 import { prisma }          from '@/lib/db'
 import { decryptSecret }   from '@/lib/encryption'
 import { startVeoGeneration, pollVeoOperation, uploadVeoVideoToBlob }                         from '@/lib/ai/veo'
-import { startKlingGeneration, pollKlingTask, uploadKlingVideoToBlob }                        from '@/lib/ai/kling'
+import { startKlingGeneration, pollKlingTask, uploadKlingVideoToBlob, startKlingLipSync, pollKlingLipSync }                        from '@/lib/ai/kling'
 import { startGrokVideoGeneration, pollGrokVideo, uploadGrokVideoToBlob }                     from '@/lib/ai/grok-video'
 import { startOpenRouterVideo, pollOpenRouterVideo, uploadOpenRouterVideoToBlob }             from '@/lib/ai/openrouter-video'
 
@@ -106,6 +106,7 @@ async function processJob(job: {
   id: string; provider: string; modelCode: string; prompt: string
   negativePrompt: string | null; durationSecs: number; aspectRatio: string
   credentialId: string | null; teamId: string; attempts: number
+  inputVideoUrl?: string | null; inputAudioUrl?: string | null
 }): Promise<void> {
   if (!job.credentialId) { await failJob(job.id, 'ไม่พบ credential', 'api_error', true); return }
 
@@ -136,10 +137,20 @@ async function processJob(job: {
         break
 
       case 'kling':
-        providerJobId = await startKlingGeneration({
-          apiKey, prompt: job.prompt, negativePrompt: job.negativePrompt ?? undefined,
-          modelCode: job.modelCode, durationSecs: job.durationSecs, aspectRatio: job.aspectRatio,
-        })
+        if (job.modelCode === 'kling-lip-sync') {
+          if (!job.inputVideoUrl) { await failJob(job.id, 'Lip Sync: ไม่พบวิดีโอต้นทาง', 'api_error', true); return }
+          providerJobId = await startKlingLipSync({
+            apiKey,
+            videoUrl: job.inputVideoUrl,
+            audioUrl: job.inputAudioUrl ?? undefined,
+            text:     job.inputAudioUrl ? undefined : job.prompt,
+          })
+        } else {
+          providerJobId = await startKlingGeneration({
+            apiKey, prompt: job.prompt, negativePrompt: job.negativePrompt ?? undefined,
+            modelCode: job.modelCode, durationSecs: job.durationSecs, aspectRatio: job.aspectRatio,
+          })
+        }
         break
 
       case 'xai':
@@ -215,7 +226,9 @@ async function pollJob(job: {
         result = await pollVeoOperation({ apiKey, operationName: job.providerJobId })
         break
       case 'kling':
-        result = await pollKlingTask({ apiKey, taskId: job.providerJobId })
+        result = job.modelCode === 'kling-lip-sync'
+          ? await pollKlingLipSync({ apiKey, taskId: job.providerJobId })
+          : await pollKlingTask({ apiKey, taskId: job.providerJobId })
         break
       case 'xai':
         result = await pollGrokVideo({ apiKey, requestId: job.providerJobId })

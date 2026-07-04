@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: '/video-generate',       label: '🎬 วิดีโอ AI' },
   { href: '/image',                label: 'สร้างภาพ' },
   { href: '/audio',                label: 'สร้างเสียง' },
+  { href: '/lipsync',              label: '🗣️ Lip Sync' },
   { href: '/characters',           label: 'Character' },
   { href: '/skills',               label: 'Skills' },
   { href: '/assets',               label: 'คลังไฟล์' },
