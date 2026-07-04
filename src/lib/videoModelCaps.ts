@@ -34,3 +34,17 @@ export function snapDuration(providerCode: string, modelCode: string, secs: numb
     Math.abs(cur - secs) < Math.abs(best - secs) ? cur : best
   , supported[0])
 }
+
+/** โมเดลนี้สร้างเสียง (พูด/เพลง/เอฟเฟกต์) มาพร้อมวิดีโอเลยหรือไม่ */
+export function hasNativeAudio(providerCode: string, modelCode: string): boolean {
+  const model = (modelCode ?? '').toLowerCase()
+
+  if (providerCode === 'google') return true                   // Veo 3.1 มีเสียง+บทพูดในตัว
+  if (providerCode === 'xai')    return true                   // Grok Imagine มีเสียง+lip sync ในตัว
+  if (providerCode === 'openrouter') {
+    if (model.includes('kling-v3')) return true                // Kling 3.0 native audio (5 ภาษา)
+    if (model.includes('veo'))      return true
+    return false                                               // Kling Video O1 = ภาพอย่างเดียว
+  }
+  return false                                                 // Kling official v1.6/2.0/2.5 = ภาพอย่างเดียว
+}
