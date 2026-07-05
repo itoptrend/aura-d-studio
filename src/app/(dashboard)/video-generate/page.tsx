@@ -46,6 +46,7 @@ export default function VideoGeneratePage() {
   const { values, setField, clearForm, savedAt } = useFormPersist('video-generate-form', {
     prompt: '', negativePrompt: '', aspectRatio: '16:9',
     durationSecs: '8', credentialId: '', modelCode: '',
+    dialogue: '', music: '', overlayText: '',
   })
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [providers,   setProviders]   = useState<Provider[]>([])
@@ -124,7 +125,7 @@ export default function VideoGeneratePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt:         values.prompt.trim(),
+          prompt:         composeFinalPrompt(),
           negativePrompt: values.negativePrompt?.trim() || undefined,
           aspectRatio:    values.aspectRatio,
           durationSecs:   Number(values.durationSecs),
@@ -173,6 +174,16 @@ export default function VideoGeneratePage() {
       }).catch(() => {})
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ประกอบ prompt สุดท้าย: เนื้อเรื่อง + บทพูด + ดนตรี + ข้อความบนภาพ
+  // (เขียนในรูปแบบที่โมเดล native-audio เข้าใจดีที่สุด — ผู้ใช้ไม่ต้องรู้เทคนิคเอง)
+  function composeFinalPrompt(): string {
+    let p = values.prompt.trim()
+    if (values.dialogue?.trim())    p += `\nThe character says: "${values.dialogue.trim()}"`
+    if (values.music?.trim())       p += `\nBackground audio: ${values.music.trim()}`
+    if (values.overlayText?.trim()) p += `\nText overlay on screen: "${values.overlayText.trim()}"`
+    return p
+  }
 
   const isRunning = jobState?.status === 'pending' || jobState?.status === 'running'
 
@@ -268,6 +279,32 @@ export default function VideoGeneratePage() {
               🔇 โมเดลนี้ให้ภาพอย่างเดียว — เพิ่มเสียงพูดตรงปากภายหลังได้ที่เมนู <Link href="/lipsync" className="underline text-gold">Lip Sync</Link>
             </p>
           )
+        )}
+
+        {/* ช่องเสียง/ดนตรี/ข้อความ — แสดงเฉพาะโมเดลที่มี native audio ระบบประกอบเข้า prompt ให้เอง */}
+        {values.modelCode && hasNativeAudio(selectedCredential?.providerCode ?? '', values.modelCode) && (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-3">
+            <p className="text-[11px] text-emerald-300/80 font-medium">✨ เสียงและข้อความอัตโนมัติ (ไม่บังคับ — ระบบจะประกอบเข้า prompt ให้เอง)</p>
+            <div>
+              <label className="block text-[11px] text-[#9C9690] mb-1">🗣️ บทพูดของตัวละคร</label>
+              <input value={values.dialogue} onChange={e => setField('dialogue', e.target.value)} disabled={isRunning}
+                placeholder='เช่น: ผิวสวยใสใน 7 วัน ลองเลยค่ะ!' maxLength={200}
+                className="w-full rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[11px] text-[#9C9690] mb-1">🎵 ดนตรี / เสียงประกอบ</label>
+              <input value={values.music} onChange={e => setField('music', e.target.value)} disabled={isRunning}
+                placeholder='เช่น: upbeat cheerful pop music / เสียงนกร้อง บรรยากาศเช้า' maxLength={150}
+                className="w-full rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[11px] text-[#9C9690] mb-1">💬 ข้อความบนภาพ</label>
+              <input value={values.overlayText} onChange={e => setField('overlayText', e.target.value)} disabled={isRunning}
+                placeholder='เช่น: GLOW UP! (แนะนำอังกฤษสั้นๆ)' maxLength={60}
+                className="w-full rounded-lg px-3 py-2 text-sm" />
+              <p className="text-[10px] text-amber-400/70 mt-1">⚠ AI ยังเขียนตัวหนังสือไม่แม่น โดยเฉพาะภาษาไทย — ข้อความไทยสวยๆ แนะนำใส่ตอนตัดต่อแทน</p>
+            </div>
+          </div>
         )}
 
         <div>
