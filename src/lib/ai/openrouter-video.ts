@@ -116,7 +116,7 @@ export async function startOpenRouterVideo(opts: {
       res.status === 402
         ? 'OpenRouter: Credits ไม่พอ — กรุณาเติม credits ที่ openrouter.ai'
         : res.status === 403
-        ? 'OpenRouter: Prompt อาจโดน content filter หรือ Key ไม่มีสิทธิ์ — ลองแก้ prompt หรือตรวจสอบ Key/Credits ที่ openrouter.ai'
+        ? 'OpenRouter: API Key ไม่มีสิทธิ์ — กรุณาตรวจสอบ Key'
         : msg
     )
     ;(e as any).code         = isNonRetryable ? 'content_policy' : 'api_error'
@@ -196,13 +196,34 @@ export async function pollOpenRouterVideo(opts: {
 export async function uploadOpenRouterVideoToBlob(opts: {
   videoUrl: string
   jobId:    string
+  apiKey:   string
+  taskId?:  string       // providerJobId ฝั่ง OpenRouter — ใช้สร้างลิงก์ /content
 }): Promise<string> {
-  const { videoUrl, jobId } = opts
+  const { videoUrl, jobId, apiKey, taskId } = opts
 
-  const dlRes = await fetch(videoUrl)
-  if (!dlRes.ok) throw new Error(`ดาวน์โหลดวิดีโอจาก OpenRouter ล้มเหลว: ${dlRes.status}`)
+  // บทเรียนจากการกู้วิดีโอ: unsigned_urls โหลดตรงๆ มักโดน 401
+  // ต้องลองตามลำดับ: ลิงก์ตรง → ลิงก์ตรง+key → endpoint /content+key (ตัวที่ได้ผลชัวร์)
+  const candidates: { url: string; auth: boolean }[] = [
+    { url: videoUrl, auth: false },
+    { url: videoUrl, auth: true },
+  ]
+  if (taskId) {
+    candidates.push({ url: `${OPENROUTER_BASE}/videos/${taskId}/content?index=0`, auth: true })
+  }
 
-  const buffer   = Buffer.from(await dlRes.arrayBuffer())
+  let buffer: Buffer | null = null
+  const attempts: string[] = []
+  for (const c of candidates) {
+    const dlRes = await fetch(c.url, c.auth
+      ? { headers: { 'Authorization': `Bearer ${apiKey}` } }
+      : undefined)
+    if (dlRes.ok) { buffer = Buffer.from(await dlRes.arrayBuffer()); break }
+    attempts.push(`${c.auth ? 'auth' : 'no-auth'}:${dlRes.status}`)
+  }
+  if (!buffer) {
+    throw new Error(`ดาวน์โหลดวิดีโอจาก OpenRouter ล้มเหลวทุกช่องทาง (${attempts.join(', ')})`)
+  }
+
   const filename = `videos/${jobId}-${Date.now()}.mp4`
 
   const blob = await put(filename, buffer, {

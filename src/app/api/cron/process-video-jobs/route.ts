@@ -265,7 +265,10 @@ async function pollJob(job: {
         blobUrl = await uploadGrokVideoToBlob({ videoUrl: result.videoUrl!, jobId: job.id })
         break
       case 'openrouter':
-        blobUrl = await uploadOpenRouterVideoToBlob({ videoUrl: result.videoUrl!, jobId: job.id })
+        blobUrl = await uploadOpenRouterVideoToBlob({
+          videoUrl: result.videoUrl!, jobId: job.id,
+          apiKey, taskId: job.providerJobId,
+        })
         break
       default:
         return
