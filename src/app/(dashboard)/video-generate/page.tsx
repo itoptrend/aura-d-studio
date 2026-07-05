@@ -19,6 +19,12 @@ interface JobPollResponse {
   blobUrl?: string; assetId?: string; errorMessage?: string; errorCode?: string
   attempts: number; maxAttempts: number
 }
+interface RecentJob {
+  id: string; status: JobStatus; modelCode: string; prompt: string
+  assetId: string | null; errorMessage: string | null; createdAt: string
+}
+
+const ACTIVE_JOB_KEY = 'video-generate-active-job'  // จำงานที่กำลังทำ ข้ามการสลับหน้า
 
 const ASPECT_RATIOS = [
   { value: '16:9', label: '16:9', w: 40, h: 23, desc: 'Landscape — YouTube / Banner' },
@@ -44,6 +50,7 @@ export default function VideoGeneratePage() {
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [providers,   setProviders]   = useState<Provider[]>([])
   const [jobId,    setJobId]    = useState<string | null>(null)
+  const [recentJobs, setRecentJobs] = useState<RecentJob[]>([])
   const [jobState, setJobState] = useState<JobPollResponse | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -97,8 +104,8 @@ export default function VideoGeneratePage() {
         const res  = await fetch(`/api/jobs/${id}`)
         const data: JobPollResponse = await res.json()
         setJobState(data)
-        if (data.status === 'succeeded') { stopPolling(); success('สร้างวิดีโอสำเร็จแล้ว! 🎉') }
-        else if (data.status === 'failed')  { stopPolling(); toastError(data.errorMessage ?? 'สร้างวิดีโอไม่สำเร็จ') }
+        if (data.status === 'succeeded') { stopPolling(); localStorage.removeItem(ACTIVE_JOB_KEY); loadRecentJobs(); success('สร้างวิดีโอสำเร็จแล้ว! 🎉') }
+        else if (data.status === 'failed')  { stopPolling(); localStorage.removeItem(ACTIVE_JOB_KEY); loadRecentJobs(); toastError(data.errorMessage ?? 'สร้างวิดีโอไม่สำเร็จ') }
         else if (data.status === 'stalled') { stopPolling(); toastError('งานค้างนานเกินไป — กรุณาลองใหม่') }
       } catch { /* รอรอบหน้า */ }
     }, POLL_INTERVAL_MS)
@@ -129,8 +136,10 @@ export default function VideoGeneratePage() {
       const data = await res.json()
       if (!res.ok) { toastError(data.error ?? 'เกิดข้อผิดพลาด'); return }
       setJobId(data.jobId)
+      localStorage.setItem(ACTIVE_JOB_KEY, data.jobId)
       setJobState({ id: data.jobId, status: 'pending', progress: 0, attempts: 0, maxAttempts: 3 })
       startPolling(data.jobId)
+      loadRecentJobs()
       info('ส่งงานสร้างวิดีโอแล้ว — ระบบจะประมวลผลและแจ้งเมื่อเสร็จ (ใช้เวลา 2-8 นาที)')
     } catch { toastError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้') }
   }
@@ -143,6 +152,27 @@ export default function VideoGeneratePage() {
       info('ล้างข้อมูลและยกเลิกงานที่รออยู่แล้ว')
     } catch { toastError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้') }
   }
+
+  const loadRecentJobs = useCallback(() => {
+    fetch('/api/jobs').then(r => r.json())
+      .then(d => setRecentJobs(d.jobs ?? []))
+      .catch(() => {})
+  }, [])
+
+  // เมื่อเปิดหน้า: โหลดรายการงานล่าสุด + ถ้ามีงานค้างจากรอบก่อน ให้เฝ้าต่ออัตโนมัติ
+  useEffect(() => {
+    loadRecentJobs()
+    const savedId = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_JOB_KEY) : null
+    if (savedId && !jobId) {
+      fetch(`/api/jobs/${savedId}`).then(r => r.ok ? r.json() : null).then((data: JobPollResponse | null) => {
+        if (!data) { localStorage.removeItem(ACTIVE_JOB_KEY); return }
+        setJobId(savedId)
+        setJobState(data)
+        if (data.status === 'pending' || data.status === 'running') startPolling(savedId)
+        else localStorage.removeItem(ACTIVE_JOB_KEY)
+      }).catch(() => {})
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const isRunning = jobState?.status === 'pending' || jobState?.status === 'running'
 
@@ -359,6 +389,39 @@ export default function VideoGeneratePage() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* งานล่าสุด — งานประมวลผลฝั่งเซิร์ฟเวอร์ สลับหน้าไปมาได้ ไม่หายไปไหน */}
+      {recentJobs.length > 0 && (
+        <div className="mt-8 max-w-xl border-t border-[#2C2A35] pt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-[#9C9690]">งานล่าสุดของคุณ</h2>
+            <button onClick={loadRecentJobs}
+              className="text-xs text-[#9C9690] hover:text-bone px-2 py-1 rounded-lg border border-[#2C2A35] hover:border-[#9C9690]">
+              ↻ รีเฟรช
+            </button>
+          </div>
+          <div className="space-y-2">
+            {recentJobs.map(j => (
+              <div key={j.id} className="flex items-center gap-3 rounded-xl border border-[#2C2A35] px-3.5 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs truncate">{j.prompt}</p>
+                  <p className="text-[10px] text-[#9C9690] mt-0.5">
+                    {new Date(j.createdAt).toLocaleString('th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {' · '}{j.modelCode.replace('openrouter/', '')}
+                  </p>
+                </div>
+                <StatusBadge status={j.status} />
+                {j.status === 'succeeded' && j.assetId && (
+                  <Link href={`/assets/${j.assetId}`} className="text-xs text-gold underline whitespace-nowrap">ดูผล →</Link>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-[#9C9690] mt-2">
+            💡 งานที่กำลังสร้างจะทำงานต่อฝั่งเซิร์ฟเวอร์แม้ปิดหน้านี้ — ผลลัพธ์เข้า<Link href="/assets" className="underline">คลังไฟล์</Link>อัตโนมัติ
+          </p>
         </div>
       )}
     </div>
