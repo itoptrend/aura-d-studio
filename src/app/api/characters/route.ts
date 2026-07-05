@@ -10,9 +10,10 @@ export async function GET() {
   const characters = await prisma.character.findMany({
     where: { teamId, isActive: true },
     select: {
-      id: true, name: true, description: true,
+      id: true, name: true, description: true, role: true,
       personality: true, tone: true, backstory: true,
-      examples: true, avatarEmoji: true, createdAt: true
+      examples: true, avatarEmoji: true, createdAt: true,
+      gender: true, ageRange: true, skinTone: true, appearance: true, outfit: true
     },
     orderBy: { createdAt: 'desc' }
   });
@@ -27,7 +28,13 @@ const createSchema = z.object({
   tone: z.string().optional().default(''),
   backstory: z.string().optional(),
   examples: z.string().optional(),
-  avatarEmoji: z.string().optional().default('🤖')
+  avatarEmoji: z.string().optional().default('🤖'),
+  role: z.string().optional().default('unset'),
+  gender: z.string().optional().default(''),
+  ageRange: z.string().optional().default(''),
+  skinTone: z.string().optional().default(''),
+  appearance: z.string().optional(),
+  outfit: z.string().optional()
 });
 
 export async function POST(req: Request) {

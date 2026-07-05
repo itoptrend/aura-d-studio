@@ -22,7 +22,13 @@ export async function PATCH(
     tone: z.string().optional(),
     backstory: z.string().optional(),
     examples: z.string().optional(),
-    avatarEmoji: z.string().optional()
+    avatarEmoji: z.string().optional(),
+    role: z.string().optional(),
+    gender: z.string().optional(),
+    ageRange: z.string().optional(),
+    skinTone: z.string().optional(),
+    appearance: z.string().optional(),
+    outfit: z.string().optional()
   });
 
   const parsed = updateSchema.safeParse(body);

@@ -199,12 +199,20 @@ model Character {
   teamId      String   @map("team_id")
   name        String                          // ชื่อตัวละคร เช่น "น้องออร่า"
   description String?                         // คำอธิบายสั้นๆ
-  role        String   @default("unset")      // 'main' | 'supporting' | 'unset' — optional
+  role        String   @default("unset")      // 'heroine' | 'hero' | 'supporting' | 'extra' | 'villain' | 'unset'
   personality String   @default("")           // บุคลิกนิสัย
   tone        String   @default("")           // น้ำเสียงการสื่อสาร
   backstory   String?                         // ประวัติ/เรื่องราว
   examples    String?                         // ตัวอย่างประโยคที่ตัวละครจะพูด
   avatarEmoji String   @default("🤖") @map("avatar_emoji")
+
+  // รูปลักษณ์ — ใช้ล็อกหน้าตาให้ตัวละครออกมาใกล้เคียงกันทุกฉาก/ทุก EP
+  gender      String   @default("")           // เพศ เช่น หญิง/ชาย/ไม่ระบุ
+  ageRange    String   @default("") @map("age_range")   // ช่วงวัย เช่น "25-30 ปี"
+  skinTone    String   @default("") @map("skin_tone")   // สีผิว เช่น "ผิวสองสี"
+  appearance  String?                          // หน้าตา ทรงผม รูปร่าง จุดเด่น (ยิ่งละเอียดยิ่งนิ่ง)
+  outfit      String?                          // ชุด/สไตล์ประจำตัว
+
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
 

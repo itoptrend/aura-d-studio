@@ -5,6 +5,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useToast } from '@/components/Toast'
 import { getSupportedDurations, hasNativeAudio } from '@/lib/videoModelCaps'
+import { buildCharactersSection, ROLE_LABELS, type CharacterForPrompt } from '@/lib/characterPrompt'
 import { useFormPersist, formatSavedAt } from '@/lib/useFormPersist'
 
 interface Credential {
@@ -22,6 +23,10 @@ interface JobPollResponse {
 interface RecentJob {
   id: string; status: JobStatus; modelCode: string; prompt: string
   assetId: string | null; errorMessage: string | null; createdAt: string
+}
+
+interface CharacterRow extends CharacterForPrompt {
+  id: string; avatarEmoji: string
 }
 
 const ACTIVE_JOB_KEY = 'video-generate-active-job'  // จำงานที่กำลังทำ ข้ามการสลับหน้า
@@ -52,6 +57,8 @@ export default function VideoGeneratePage() {
   const [providers,   setProviders]   = useState<Provider[]>([])
   const [jobId,    setJobId]    = useState<string | null>(null)
   const [recentJobs, setRecentJobs] = useState<RecentJob[]>([])
+  const [allCharacters, setAllCharacters] = useState<CharacterRow[]>([])
+  const [selectedCharIds, setSelectedCharIds] = useState<string[]>([])
   const [jobState, setJobState] = useState<JobPollResponse | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -163,6 +170,9 @@ export default function VideoGeneratePage() {
   // เมื่อเปิดหน้า: โหลดรายการงานล่าสุด + ถ้ามีงานค้างจากรอบก่อน ให้เฝ้าต่ออัตโนมัติ
   useEffect(() => {
     loadRecentJobs()
+    fetch('/api/characters').then(r => r.json())
+      .then(d => setAllCharacters(d.characters ?? []))
+      .catch(() => {})
     const savedId = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_JOB_KEY) : null
     if (savedId && !jobId) {
       fetch(`/api/jobs/${savedId}`).then(r => r.ok ? r.json() : null).then((data: JobPollResponse | null) => {
@@ -179,6 +189,8 @@ export default function VideoGeneratePage() {
   // (เขียนในรูปแบบที่โมเดล native-audio เข้าใจดีที่สุด — ผู้ใช้ไม่ต้องรู้เทคนิคเอง)
   function composeFinalPrompt(): string {
     let p = values.prompt.trim()
+    const chars = allCharacters.filter(c => selectedCharIds.includes(c.id))
+    if (chars.length > 0) p += buildCharactersSection(chars)
     if (values.dialogue?.trim())    p += `\nThe character says: "${values.dialogue.trim()}"`
     if (values.music?.trim())       p += `\nBackground audio: ${values.music.trim()}`
     if (values.overlayText?.trim()) p += `\nText overlay on screen: "${values.overlayText.trim()}"`
@@ -279,6 +291,45 @@ export default function VideoGeneratePage() {
               🔇 โมเดลนี้ให้ภาพอย่างเดียว — เพิ่มเสียงพูดตรงปากภายหลังได้ที่เมนู <Link href="/lipsync" className="underline text-gold">Lip Sync</Link>
             </p>
           )
+        )}
+
+        {/* ตัวละครในฉาก — ล็อกหน้าตาให้เหมือนกันทุกคลิป/ทุก EP */}
+        {allCharacters.length > 0 && (
+          <div className="rounded-xl border border-[#2C2A35] p-3.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-[#9C9690] font-medium">🎭 ตัวละครในฉาก (เลือกได้หลายตัว — ระบบแนบรูปลักษณ์เข้า prompt ให้เอง)</p>
+              <button type="button" disabled={isRunning}
+                onClick={() => {
+                  const auto = allCharacters
+                    .filter(c => ['heroine', 'hero'].includes(c.role ?? ''))
+                    .map(c => c.id)
+                  setSelectedCharIds(auto.length > 0 ? auto : allCharacters.slice(0, 1).map(c => c.id))
+                }}
+                className="text-[10px] px-2 py-1 rounded-lg border border-[#2C2A35] text-[#9C9690] hover:border-gold hover:text-gold">
+                ✨ เลือกอัตโนมัติ (นางเอก+พระเอก)
+              </button>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {allCharacters.map(c => {
+                const active = selectedCharIds.includes(c.id)
+                return (
+                  <button key={c.id} type="button" disabled={isRunning}
+                    onClick={() => setSelectedCharIds(prev =>
+                      active ? prev.filter(x => x !== c.id) : [...prev, c.id])}
+                    className={`text-xs px-3 py-1.5 rounded-xl border transition-colors ${
+                      active ? 'border-gold bg-gold/10 text-gold font-semibold' : 'border-[#2C2A35] text-[#9C9690] hover:border-[#9C9690]'
+                    }`}>
+                    {c.avatarEmoji} {c.name}{c.role && c.role !== 'unset' ? ` · ${ROLE_LABELS[c.role] ?? c.role}` : ''}
+                  </button>
+                )
+              })}
+            </div>
+            {selectedCharIds.length > 0 && (
+              <p className="text-[10px] text-emerald-400/80">
+                ✓ เลือก {selectedCharIds.length} ตัวละคร — รูปลักษณ์จะถูกล็อกให้เหมือนกันทุกคลิปที่เลือกตัวละครเดียวกัน
+              </p>
+            )}
+          </div>
         )}
 
         {/* ช่องเสียง/ดนตรี/ข้อความ — แสดงเฉพาะโมเดลที่มี native audio ระบบประกอบเข้า prompt ให้เอง */}

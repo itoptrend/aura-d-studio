@@ -13,23 +13,31 @@ interface Character {
   examples?: string;
   avatarEmoji: string;
   createdAt: string;
+  gender?: string;
+  ageRange?: string;
+  skinTone?: string;
+  appearance?: string;
+  outfit?: string;
 }
 
 interface Credential { id: string; displayName: string; providerCode: string; }
 
 const EMOJI_OPTIONS = ['🤖','👩','👨','🦸','🧙','🎭','🌟','💫','🔥','🌸','🐯','🦋'];
-const EMPTY_FORM = { name:'', description:'', role:'unset', personality:'', tone:'', backstory:'', examples:'', avatarEmoji:'🤖' };
+const EMPTY_FORM = { name:'', description:'', role:'unset', personality:'', tone:'', backstory:'', examples:'', avatarEmoji:'🤖', gender:'', ageRange:'', skinTone:'', appearance:'', outfit:'' };
 
 const ROLE_LABEL: Record<string,string> = {
-  main: '⭐ ตัวหลัก',
-  supporting: '🎭 ตัวประกอบ',
-  unset: ''
+  heroine: '👸 นางเอก', hero: '🤴 พระเอก', supporting: '🎭 ตัวรอง',
+  extra: '👥 ตัวประกอบ', villain: '😈 ตัวร้าย',
+  main: '⭐ ตัวหลัก', unset: ''
 };
 
 const ROLE_OPTIONS = [
-  { value: 'unset',      label: 'ไม่ระบุ (ทั่วไป)' },
-  { value: 'main',       label: '⭐ ตัวหลัก — Brand Voice หลักของแบรนด์' },
-  { value: 'supporting', label: '🎭 ตัวประกอบ — ใช้เสริมในเนื้อหาเฉพาะ' }
+  { value: 'heroine',    label: '👸 นางเอก' },
+  { value: 'hero',       label: '🤴 พระเอก' },
+  { value: 'supporting', label: '🎭 ตัวรอง' },
+  { value: 'extra',      label: '👥 ตัวประกอบ' },
+  { value: 'villain',    label: '😈 ตัวร้าย' },
+  { value: 'unset',      label: 'ไม่ระบุ (ทั่วไป)' }
 ];
 
 export default function CharactersPage() {
@@ -117,13 +125,15 @@ export default function CharactersPage() {
   function handleEdit(c: Character) {
     setForm({ name:c.name, description:c.description??'', role:c.role,
       personality:c.personality, tone:c.tone, backstory:c.backstory??'',
-      examples:c.examples??'', avatarEmoji:c.avatarEmoji });
+      examples:c.examples??'', avatarEmoji:c.avatarEmoji,
+      gender:c.gender??'', ageRange:c.ageRange??'', skinTone:c.skinTone??'',
+      appearance:c.appearance??'', outfit:c.outfit??'' });
     setEditingId(c.id); setShowForm(true); setExpanded(null);
   }
 
   // Group characters by role for display
-  const main = characters.filter((c) => c.role === 'main');
-  const supporting = characters.filter((c) => c.role === 'supporting');
+  const main = characters.filter((c) => ['heroine','hero','main'].includes(c.role));
+  const supporting = characters.filter((c) => ['supporting','extra','villain'].includes(c.role));
   const unset = characters.filter((c) => c.role === 'unset');
   const hasGroups = main.length > 0 || supporting.length > 0;
 
@@ -250,6 +260,39 @@ export default function CharactersPage() {
             <p className="text-[11px] text-[#9C9690] mt-1.5">
               ไม่เลือกก็ได้ — ระบบจะแสดงตัวละครทั้งหมดรวมกัน เลือกเพื่อจัดหมวดหมู่เท่านั้น
             </p>
+          </div>
+
+          {/* รูปลักษณ์ — หัวใจของความต่อเนื่องทุกฉาก/ทุก EP */}
+          <div className="rounded-xl border border-gold/20 bg-gold/5 p-3.5 space-y-3">
+            <p className="text-xs text-gold font-semibold">🎨 รูปลักษณ์ (ใช้ล็อกหน้าตาให้เหมือนกันทุกฉาก — ยิ่งละเอียดยิ่งนิ่ง)</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-[11px] text-[#9C9690] mb-1">เพศ</label>
+                <input value={form.gender} onChange={(e) => setForm({...form, gender:e.target.value})}
+                  placeholder="หญิง / ชาย" className="w-full rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-[11px] text-[#9C9690] mb-1">ช่วงวัย</label>
+                <input value={form.ageRange} onChange={(e) => setForm({...form, ageRange:e.target.value})}
+                  placeholder="25-30 ปี" className="w-full rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-[11px] text-[#9C9690] mb-1">สีผิว</label>
+                <input value={form.skinTone} onChange={(e) => setForm({...form, skinTone:e.target.value})}
+                  placeholder="ผิวสองสี" className="w-full rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] text-[#9C9690] mb-1">หน้าตา ทรงผม รูปร่าง จุดเด่น</label>
+              <textarea value={form.appearance} onChange={(e) => setForm({...form, appearance:e.target.value})} rows={2}
+                placeholder="เช่น: ผมยาวสีดำตรง หน้ารูปไข่ ตากลมโต ยิ้มมีลักยิ้ม รูปร่างสมส่วน สูง 165 ซม."
+                className="w-full rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[11px] text-[#9C9690] mb-1">ชุด / สไตล์ประจำตัว</label>
+              <input value={form.outfit} onChange={(e) => setForm({...form, outfit:e.target.value})}
+                placeholder="เช่น: เดรสสีครีมมินิมอล / ชุดหมอสีขาว" className="w-full rounded-lg px-3 py-2 text-sm" />
+            </div>
           </div>
 
           {/* AI Generator */}
