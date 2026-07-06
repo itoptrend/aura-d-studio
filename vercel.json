@@ -1,11 +1,13 @@
 {
   "buildCommand": "prisma generate && next build",
   "installCommand": "npm install",
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
   "crons": [
     {
       "path": "/api/cron/process-video-jobs",
-      "schedule": "* * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }

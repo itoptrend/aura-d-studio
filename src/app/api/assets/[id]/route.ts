@@ -57,6 +57,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       type: asset.type,
       title: asset.title,
       contentText: asset.contentText,
+      fileUrl: asset.fileUrl,
       isFavorited: asset.isFavorited,
       createdAt: asset.createdAt
     },
