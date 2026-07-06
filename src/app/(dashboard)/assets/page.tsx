@@ -80,6 +80,15 @@ export default function AssetsPage() {
     e.preventDefault();
     const res = await fetch(`/api/assets/${id}`);
     const data = await res.json();
+    // ไฟล์ที่เก็บบน Blob (วิดีโอ) — ดาวน์โหลดจากลิงก์ตรง
+    const fileUrl: string | null = data.asset?.fileUrl ?? null;
+    if (fileUrl) {
+      const a = document.createElement('a');
+      a.href = `${fileUrl}?download=1`;
+      a.download = `${title}.mp4`;
+      a.click();
+      return;
+    }
     const content: string = data.asset?.contentText;
     if (!content) return;
     const a = document.createElement('a');

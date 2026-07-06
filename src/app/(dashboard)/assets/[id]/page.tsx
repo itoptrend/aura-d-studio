@@ -20,6 +20,7 @@ interface AssetDetail {
   type: string;
   title: string;
   contentText: string | null;
+  fileUrl: string | null;
   isFavorited: boolean;
   createdAt: string;
 }
@@ -57,6 +58,13 @@ export default function AssetDetailPage() {
   }
 
   function download() {
+    if (asset?.fileUrl) {
+      const a = document.createElement('a');
+      a.href = `${asset.fileUrl}?download=1`;
+      a.download = `${asset.title}.mp4`;
+      a.click();
+      return;
+    }
     if (!asset?.contentText) return;
     const blob = new Blob([asset.contentText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -134,6 +142,13 @@ export default function AssetDetailPage() {
         ))}
         {recipe.length === 0 && <p className="text-sm text-[#9C9690]">ไม่มีข้อมูลขั้นตอนการสร้าง</p>}
       </div>
+
+      {/* วิดีโอ — เก็บบน Blob (fileUrl) ไม่ใช่ contentText */}
+      {asset.type === 'video' && asset.fileUrl && (
+        <div className="rounded-2xl border border-[#2C2A35] overflow-hidden bg-black">
+          <video src={asset.fileUrl} controls playsInline className="w-full max-h-[600px]" style={{ accentColor: '#E4DECE' }} />
+        </div>
+      )}
 
       {asset.contentText && (
         asset.contentText.startsWith('data:image') ? (

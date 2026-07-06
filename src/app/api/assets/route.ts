@@ -16,6 +16,7 @@ export async function GET() {
       createdAt: true,
       expiresAt: true,
       contentText: true,
+      fileUrl: true,
       sourceNodeExecution: { select: { costCredit: true } }
     },
     orderBy: { createdAt: 'desc' }
@@ -26,7 +27,7 @@ export async function GET() {
   // audio/document: เก็บแค่ flag ว่ามีข้อมูลหรือไม่
   const trimmed = assets.map((a: {
     id: string; type: string; title: string; isFavorited: boolean;
-    createdAt: Date; expiresAt: Date | null; contentText: string | null;
+    createdAt: Date; expiresAt: Date | null; contentText: string | null; fileUrl: string | null;
     sourceNodeExecution: { costCredit: unknown } | null;
   }) => ({
     id: a.id,
@@ -36,7 +37,8 @@ export async function GET() {
     createdAt: a.createdAt,
     expiresAt: a.expiresAt,
     sourceNodeExecution: a.sourceNodeExecution,
-    hasContent: !!a.contentText,
+    hasContent: !!a.contentText || !!a.fileUrl,
+    fileUrl: a.fileUrl,
     thumbnail: a.contentText?.startsWith('data:image') ? a.contentText : null,
     isAudio: a.contentText?.startsWith('data:audio') ?? false,
   }));
