@@ -212,6 +212,7 @@ model Character {
   skinTone    String   @default("") @map("skin_tone")   // สีผิว เช่น "ผิวสองสี"
   appearance  String?                          // หน้าตา ทรงผม รูปร่าง จุดเด่น (ยิ่งละเอียดยิ่งนิ่ง)
   outfit      String?                          // ชุด/สไตล์ประจำตัว
+  portraitUrl String?  @map("portrait_url")    // ภาพตัวละคร (data URL) — เก็บถาวรจนกว่าจะลบเอง
 
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")

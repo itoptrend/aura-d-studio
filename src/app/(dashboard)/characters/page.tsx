@@ -18,6 +18,7 @@ interface Character {
   skinTone?: string;
   appearance?: string;
   outfit?: string;
+  portraitUrl?: string | null;
 }
 
 interface Credential { id: string; displayName: string; providerCode: string; }
@@ -53,6 +54,7 @@ export default function CharactersPage() {
   const [genModelCode, setGenModelCode] = useState('');
   const [expanded, setExpanded] = useState<string|null>(null);
   const [deleting, setDeleting] = useState<string|null>(null);
+  const [portraitBusy, setPortraitBusy] = useState<string|null>(null);  // characterId ที่กำลังสร้าง/ลบภาพ
 
   async function loadAll() {
     const [charRes, credRes, provRes] = await Promise.all([
@@ -137,12 +139,41 @@ export default function CharactersPage() {
   const unset = characters.filter((c) => c.role === 'unset');
   const hasGroups = main.length > 0 || supporting.length > 0;
 
+  async function generatePortrait(characterId: string) {
+    if (!genCredentialId) { alert('เลือก AI Key ในส่วน "AI ช่วยสร้าง" ก่อน — ใช้ Key เดียวกันสร้างภาพ'); return; }
+    setPortraitBusy(characterId);
+    try {
+      const res = await fetch(`/api/characters/${characterId}/portrait`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ credentialId: genCredentialId })
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error ?? 'สร้างภาพไม่สำเร็จ'); return; }
+      await loadAll();
+    } catch { alert('เกิดข้อผิดพลาดในการสร้างภาพ'); }
+    finally { setPortraitBusy(null); }
+  }
+
+  async function deletePortrait(characterId: string) {
+    setPortraitBusy(characterId);
+    try {
+      await fetch(`/api/characters/${characterId}/portrait`, { method: 'DELETE' });
+      await loadAll();
+    } finally { setPortraitBusy(null); }
+  }
+
   const CharacterCard = ({ c }: { c: Character }) => (
     <div className="rounded-2xl border border-[#2C2A35] overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#1C1B23]"
         onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{c.avatarEmoji}</span>
+          {c.portraitUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={c.portraitUrl} alt={c.name} className="w-10 h-10 rounded-full object-cover border border-gold/40" />
+          ) : (
+            <span className="text-2xl">{c.avatarEmoji}</span>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold">{c.name}</p>
@@ -170,6 +201,31 @@ export default function CharactersPage() {
       </div>
       {expanded === c.id && (
         <div className="px-4 pb-4 border-t border-[#2C2A35] space-y-3 pt-3">
+          {/* ภาพตัวละคร — สร้างจากรูปลักษณ์+นิสัยที่กำหนด เก็บถาวรจนกว่าจะลบเอง */}
+          <div>
+            <p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-2">ภาพตัวละคร</p>
+            {c.portraitUrl ? (
+              <div className="flex items-start gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={c.portraitUrl} alt={c.name} className="w-40 h-40 rounded-xl object-cover border border-[#2C2A35]" />
+                <div className="flex flex-col gap-2">
+                  <button onClick={() => generatePortrait(c.id)} disabled={portraitBusy === c.id}
+                    className="text-xs text-gold border border-gold/40 rounded-lg px-3 py-1.5 disabled:opacity-50">
+                    {portraitBusy === c.id ? '⏳ กำลังสร้าง...' : '🎲 สร้างใหม่ (ไม่ถูกใจภาพนี้)'}
+                  </button>
+                  <button onClick={() => deletePortrait(c.id)} disabled={portraitBusy === c.id}
+                    className="text-xs text-[#C9716A] border border-[#C9716A]/40 rounded-lg px-3 py-1.5 disabled:opacity-50">
+                    🗑 ลบภาพ
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => generatePortrait(c.id)} disabled={portraitBusy === c.id}
+                className="text-xs text-gold border border-gold/40 rounded-lg px-3 py-1.5 disabled:opacity-50">
+                {portraitBusy === c.id ? '⏳ กำลังสร้างภาพ (10-30 วิ)...' : '🎨 สร้างภาพตัวละครจากข้อมูลด้านล่าง'}
+              </button>
+            )}
+          </div>
           {c.personality && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">บุคลิก</p><p className="text-sm leading-relaxed">{c.personality}</p></div>}
           {c.tone && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">น้ำเสียง</p><p className="text-sm leading-relaxed">{c.tone}</p></div>}
           {c.backstory && <div><p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-1">ประวัติ</p><p className="text-sm leading-relaxed">{c.backstory}</p></div>}

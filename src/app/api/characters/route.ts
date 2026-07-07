@@ -13,7 +13,8 @@ export async function GET() {
       id: true, name: true, description: true, role: true,
       personality: true, tone: true, backstory: true,
       examples: true, avatarEmoji: true, createdAt: true,
-      gender: true, ageRange: true, skinTone: true, appearance: true, outfit: true
+      gender: true, ageRange: true, skinTone: true, appearance: true, outfit: true,
+      portraitUrl: true
     },
     orderBy: { createdAt: 'desc' }
   });
