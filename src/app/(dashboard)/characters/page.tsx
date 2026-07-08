@@ -56,6 +56,7 @@ export default function CharactersPage() {
   const [deleting, setDeleting] = useState<string|null>(null);
   const [portraitBusy, setPortraitBusy] = useState<string|null>(null);  // characterId ที่กำลังสร้าง/ลบภาพ
   const [portraitCredId, setPortraitCredId] = useState('');  // Key สำหรับสร้างภาพ (google/xai/openai)
+  const [zoomImage, setZoomImage] = useState<{ url: string; name: string } | null>(null);  // ภาพที่กำลังดูขยาย
 
   async function loadAll() {
     const [charRes, credRes, provRes] = await Promise.all([
@@ -227,7 +228,10 @@ export default function CharactersPage() {
             {c.portraitUrl ? (
               <div className="flex items-start gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={c.portraitUrl} alt={c.name} className="w-40 h-40 rounded-xl object-cover border border-[#2C2A35]" />
+                <img src={c.portraitUrl} alt={c.name}
+                  onClick={() => setZoomImage({ url: c.portraitUrl!, name: c.name })}
+                  className="w-40 h-40 rounded-xl object-cover border border-[#2C2A35] cursor-zoom-in hover:opacity-90 transition-opacity"
+                  title="คลิกเพื่อดูภาพขยาย" />
                 <div className="flex flex-col gap-2">
                   <button onClick={() => generatePortrait(c.id)} disabled={portraitBusy === c.id}
                     className="text-xs text-gold border border-gold/40 rounded-lg px-3 py-1.5 disabled:opacity-50">
@@ -478,6 +482,21 @@ export default function CharactersPage() {
           <div className="space-y-2">{characters.map((c) => <CharacterCard key={c.id} c={c} />)}</div>
         )}
       </div>
+
+      {/* Lightbox — ดูภาพตัวละครขยายเต็มจอ (คลิกที่ใดก็ได้เพื่อปิด) */}
+      {zoomImage && (
+        <div onClick={() => setZoomImage(null)}
+          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-6 cursor-zoom-out">
+          <div className="max-w-2xl w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={zoomImage.url} alt={zoomImage.name}
+              className="w-full rounded-2xl border border-[#2C2A35] shadow-2xl" />
+            <p className="text-center text-sm text-[#E4DECE] mt-3">
+              {zoomImage.name} · <span className="text-[#9C9690]">คลิกที่ใดก็ได้เพื่อปิด</span>
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
