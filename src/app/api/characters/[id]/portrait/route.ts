@@ -17,8 +17,17 @@ function buildPortraitPrompt(c: {
   appearance: string | null; outfit: string | null
   personality: string; description: string | null; role: string
 }): string {
+  // แปลงเพศเป็นคำที่โมเดลภาพเข้าใจแม่นที่สุด — ถ้าไม่กรอก ให้เดาจากบทบาท
+  const g = (c.gender ?? '').trim().toLowerCase()
+  let genderWord = ''
+  if (['หญิง', 'ผู้หญิง', 'female', 'woman', 'f'].some(w => g.includes(w))) genderWord = 'female (woman)'
+  else if (['ชาย', 'ผู้ชาย', 'male', 'man', 'm'].some(w => g.includes(w))) genderWord = 'male (man)'
+  else if (g) genderWord = c.gender!.trim()
+  else if (c.role === 'heroine') genderWord = 'female (woman)'   // นางเอกไม่ระบุเพศ → หญิง
+  else if (c.role === 'hero')    genderWord = 'male (man)'       // พระเอกไม่ระบุเพศ → ชาย
+
   const parts: string[] = []
-  if (c.gender)      parts.push(c.gender)
+  if (genderWord)    parts.push(`Thai ${genderWord}`)
   if (c.ageRange)    parts.push(`age ${c.ageRange}`)
   if (c.skinTone)    parts.push(`${c.skinTone} skin tone`)
   if (c.appearance)  parts.push(c.appearance)

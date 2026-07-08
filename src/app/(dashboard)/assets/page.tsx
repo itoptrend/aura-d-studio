@@ -11,6 +11,7 @@ interface AssetRow {
   isFavorited: boolean;
   createdAt: string;
   expiresAt: string | null;
+  videoCredit?: number | null;
   hasContent: boolean;
   thumbnail: string | null;
   isAudio: boolean;
@@ -357,7 +358,7 @@ export default function AssetsPage() {
                 <p className="text-sm font-semibold truncate">{TYPE_EMOJI[a.type] ?? '📁'} {a.title}</p>
                 <p className="text-xs text-[#9C9690] mt-0.5">
                   {TYPE_LABEL[a.type] ?? a.type} · {new Date(a.createdAt).toLocaleString('th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  {a.sourceNodeExecution && ` · ~${a.sourceNodeExecution.costCredit} เครดิต`}
+                  {a.sourceNodeExecution && ` · ~${a.sourceNodeExecution.costCredit} เครดิต`}{a.videoCredit ? ` · ~${a.videoCredit} เครดิต` : ''}
                   {(() => { const b = expiryBadge(a.expiresAt); return b ? (
                     <span className={`ml-2 ${b.urgent ? 'text-red-400 font-semibold' : 'text-amber-400/80'}`}>{b.text}</span>
                   ) : null; })()}
@@ -368,7 +369,7 @@ export default function AssetsPage() {
                 <p className="text-sm font-semibold truncate">{TYPE_EMOJI[a.type] ?? '📁'} {a.title}</p>
                 <p className="text-xs text-[#9C9690] mt-0.5">
                   {TYPE_LABEL[a.type] ?? a.type} · {new Date(a.createdAt).toLocaleString('th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  {a.sourceNodeExecution && ` · ~${a.sourceNodeExecution.costCredit} เครดิต`}
+                  {a.sourceNodeExecution && ` · ~${a.sourceNodeExecution.costCredit} เครดิต`}{a.videoCredit ? ` · ~${a.videoCredit} เครดิต` : ''}
                   {(() => { const b = expiryBadge(a.expiresAt); return b ? (
                     <span className={`ml-2 ${b.urgent ? 'text-red-400 font-semibold' : 'text-amber-400/80'}`}>{b.text}</span>
                   ) : null; })()}

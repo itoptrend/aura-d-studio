@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentTeamId } from '@/lib/session';
+import { getVideoCredits } from '@/lib/videoCredits';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -51,6 +52,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const totalCostCredit = recipe.reduce((sum: number, step: { costCredit: unknown }) => sum + Number(step.costCredit), 0);
 
+  // วิดีโอมาทางคิว cron ไม่มี recipe — คิดเครดิตจาก VideoJob ที่สร้างมันแทน
+  let videoCostCredit = 0;
+  if (asset.type === 'video') {
+    const vj = await prisma.videoJob.findFirst({
+      where: { assetId: asset.id },
+      select: { modelCode: true, durationSecs: true },
+    });
+    if (vj) videoCostCredit = getVideoCredits(vj.modelCode, vj.durationSecs);
+  }
+
   return NextResponse.json({
     asset: {
       id: asset.id,
@@ -62,7 +73,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       createdAt: asset.createdAt
     },
     recipe,
-    totalCostCredit
+    totalCostCredit: totalCostCredit + videoCostCredit
   });
 }
 
