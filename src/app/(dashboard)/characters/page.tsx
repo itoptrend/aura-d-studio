@@ -55,6 +55,7 @@ export default function CharactersPage() {
   const [expanded, setExpanded] = useState<string|null>(null);
   const [deleting, setDeleting] = useState<string|null>(null);
   const [portraitBusy, setPortraitBusy] = useState<string|null>(null);  // characterId ที่กำลังสร้าง/ลบภาพ
+  const [portraitCredId, setPortraitCredId] = useState('');  // Key สำหรับสร้างภาพ (google/xai/openai)
 
   async function loadAll() {
     const [charRes, credRes, provRes] = await Promise.all([
@@ -69,6 +70,12 @@ export default function CharactersPage() {
   useEffect(() => { loadAll(); }, []);
 
   const selectedCredential = credentials.find((c) => c.id === genCredentialId);
+
+  // Key ที่ใช้สร้าง "ภาพ" ได้จริง — Google Gemini / xAI / OpenAI เท่านั้น
+  const imageCredentials = credentials.filter((c) => ['google', 'xai', 'openai'].includes(c.providerCode));
+  useEffect(() => {
+    if (!portraitCredId && imageCredentials.length > 0) setPortraitCredId(imageCredentials[0].id);
+  }, [credentials]); // eslint-disable-line react-hooks/exhaustive-deps
   const selectedProvider = providers.find((p) => p.code === selectedCredential?.providerCode);
 
   async function handleGenerateWithAI() {
@@ -140,13 +147,13 @@ export default function CharactersPage() {
   const hasGroups = main.length > 0 || supporting.length > 0;
 
   async function generatePortrait(characterId: string) {
-    if (!genCredentialId) { alert('เลือก AI Key ในส่วน "AI ช่วยสร้าง" ก่อน — ใช้ Key เดียวกันสร้างภาพ'); return; }
+    if (!portraitCredId) { alert('ไม่พบ AI Key ที่สร้างภาพได้ — เพิ่ม Key ของ Google Gemini / xAI / OpenAI ที่เมนู Connected AI ก่อน'); return; }
     setPortraitBusy(characterId);
     try {
       const res = await fetch(`/api/characters/${characterId}/portrait`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ credentialId: genCredentialId })
+        body: JSON.stringify({ credentialId: portraitCredId })
       });
       const data = await res.json();
       if (!res.ok) { alert(data.error ?? 'สร้างภาพไม่สำเร็จ'); return; }
@@ -204,6 +211,19 @@ export default function CharactersPage() {
           {/* ภาพตัวละคร — สร้างจากรูปลักษณ์+นิสัยที่กำหนด เก็บถาวรจนกว่าจะลบเอง */}
           <div>
             <p className="text-[10px] text-[#9C9690] uppercase tracking-wider mb-2">ภาพตัวละคร</p>
+            {imageCredentials.length > 0 ? (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] text-[#9C9690]">ใช้ AI:</span>
+                <select value={portraitCredId} onChange={(e) => setPortraitCredId(e.target.value)}
+                  className="rounded-lg px-2 py-1 text-[11px]">
+                  {imageCredentials.map((cr) => <option key={cr.id} value={cr.id}>{cr.displayName}</option>)}
+                </select>
+              </div>
+            ) : (
+              <p className="text-[10px] text-amber-400/80 mb-2">
+                ⚠ ยังไม่มี Key ที่สร้างภาพได้ — เพิ่ม Key ของ Google Gemini / xAI / OpenAI ที่เมนู Connected AI ก่อน
+              </p>
+            )}
             {c.portraitUrl ? (
               <div className="flex items-start gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -268,6 +288,20 @@ export default function CharactersPage() {
           </button>
         )}
       </div>
+
+      {/* AI Key selector — ใช้ทั้งสร้างรายละเอียดตัวละคร และสร้างภาพตัวละคร */}
+      {!showForm && credentials.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 rounded-xl border border-[#2C2A35] px-3.5 py-2.5">
+          <span className="text-xs text-[#9C9690] whitespace-nowrap">🤖 AI สำหรับสร้างภาพ:</span>
+          <select value={genCredentialId}
+            onChange={(e) => { setGenCredentialId(e.target.value); setGenModelCode(''); }}
+            className="flex-1 rounded-lg px-2.5 py-1.5 text-xs">
+            <option value="">— เลือก AI Key —</option>
+            {credentials.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+          </select>
+          {genCredentialId && <span className="text-[10px] text-emerald-400">✓ พร้อมสร้างภาพ</span>}
+        </div>
+      )}
 
       {/* Create/Edit Form */}
       {showForm && (
