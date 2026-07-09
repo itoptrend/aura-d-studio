@@ -14,7 +14,6 @@ export async function GET() {
       personality: true, tone: true, backstory: true,
       examples: true, avatarEmoji: true, createdAt: true,
       gender: true, ageRange: true, skinTone: true, appearance: true, outfit: true,
-      hairStyle: true, faceDetails: true, bodyType: true, height: true, distinctive: true,
       portraitUrl: true
     },
     orderBy: { createdAt: 'desc' }
@@ -35,11 +34,6 @@ const createSchema = z.object({
   gender: z.string().optional().default(''),
   ageRange: z.string().optional().default(''),
   skinTone: z.string().optional().default(''),
-  hairStyle: z.string().optional().default(''),
-  faceDetails: z.string().optional().default(''),
-  bodyType: z.string().optional().default(''),
-  height: z.string().optional().default(''),
-  distinctive: z.string().optional().default(''),
   appearance: z.string().optional(),
   outfit: z.string().optional()
 });

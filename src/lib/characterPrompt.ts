@@ -8,7 +8,12 @@ export interface CharacterForPrompt {
   gender?:     string | null
   ageRange?:   string | null
   skinTone?:   string | null
-  appearance?: string | null
+  hairStyle?:  string | null
+  faceDetails?: string | null
+  bodyType?:   string | null
+  height?:     string | null
+  distinctive?: string | null
+  appearance?: string | null   // (เก่า) รวมทุกอย่าง — ยังรองรับข้อมูลเดิม
   outfit?:     string | null
   personality?: string | null
 }
@@ -28,6 +33,11 @@ export function buildCharacterBlock(c: CharacterForPrompt): string {
   if (c.gender?.trim())     parts.push(c.gender.trim())
   if (c.ageRange?.trim())   parts.push(`age ${c.ageRange.trim()}`)
   if (c.skinTone?.trim())   parts.push(`${c.skinTone.trim()} skin`)
+  if (c.hairStyle?.trim())  parts.push(c.hairStyle.trim())
+  if (c.faceDetails?.trim()) parts.push(c.faceDetails.trim())
+  if (c.bodyType?.trim())   parts.push(c.bodyType.trim())
+  if (c.height?.trim())     parts.push(c.height.trim())
+  if (c.distinctive?.trim()) parts.push(c.distinctive.trim())
   if (c.appearance?.trim()) parts.push(c.appearance.trim())
   if (c.outfit?.trim())     parts.push(`wearing ${c.outfit.trim()}`)
   if (c.personality?.trim()) parts.push(`personality: ${c.personality.trim()}`)

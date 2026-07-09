@@ -210,7 +210,12 @@ model Character {
   gender      String   @default("")           // เพศ เช่น หญิง/ชาย/ไม่ระบุ
   ageRange    String   @default("") @map("age_range")   // ช่วงวัย เช่น "25-30 ปี"
   skinTone    String   @default("") @map("skin_tone")   // สีผิว เช่น "ผิวสองสี"
-  appearance  String?                          // หน้าตา ทรงผม รูปร่าง จุดเด่น (ยิ่งละเอียดยิ่งนิ่ง)
+  hairStyle   String   @default("") @map("hair_style")  // ทรงผม เช่น "ผมยาวสีดำตรง"
+  faceDetails String   @default("") @map("face_details") // หน้าตา เช่น "หน้ารูปไข่ ตากลมโต ยิ้มมีลักยิ้ม"
+  bodyType    String   @default("") @map("body_type")   // รูปร่าง เช่น "สมาร์ทหุ่นดี / ท้วม / มีกล้าม"
+  height      String   @default("")                     // ส่วนสูง เช่น "สูง 165 ซม."
+  distinctive String   @default("")                     // จุดเด่น เช่น "มีไฝใต้ตา ใส่แว่น"
+  appearance  String?                          // (เก่า) หน้าตารวม — เก็บไว้เผื่อข้อมูลเดิม
   outfit      String?                          // ชุด/สไตล์ประจำตัว
   portraitUrl String?  @map("portrait_url")    // ภาพตัวละคร (data URL) — เก็บถาวรจนกว่าจะลบเอง
 

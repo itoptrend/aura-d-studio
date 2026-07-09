@@ -27,11 +27,6 @@ export async function PATCH(
     gender: z.string().optional(),
     ageRange: z.string().optional(),
     skinTone: z.string().optional(),
-    hairStyle: z.string().optional(),
-    faceDetails: z.string().optional(),
-    bodyType: z.string().optional(),
-    height: z.string().optional(),
-    distinctive: z.string().optional(),
     appearance: z.string().optional(),
     outfit: z.string().optional()
   });

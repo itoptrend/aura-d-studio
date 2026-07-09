@@ -14,7 +14,6 @@ import { generateImage } from '@/lib/ai/imagen'
 /** ประกอบ prompt ภาพจากข้อมูลตัวละคร — หน้าตาสอดคล้องกับนิสัยตามที่ผู้ใช้ตั้งใจ */
 function buildPortraitPrompt(c: {
   name: string; gender: string; ageRange: string; skinTone: string
-  hairStyle: string; faceDetails: string; bodyType: string; height: string; distinctive: string
   appearance: string | null; outfit: string | null
   personality: string; description: string | null; role: string
 }): string {
@@ -31,11 +30,6 @@ function buildPortraitPrompt(c: {
   if (genderWord)    parts.push(`Thai ${genderWord}`)
   if (c.ageRange)    parts.push(`age ${c.ageRange}`)
   if (c.skinTone)    parts.push(`${c.skinTone} skin tone`)
-  if (c.hairStyle)   parts.push(c.hairStyle)
-  if (c.faceDetails) parts.push(c.faceDetails)
-  if (c.bodyType)    parts.push(`${c.bodyType} build`)
-  if (c.height)      parts.push(c.height)
-  if (c.distinctive) parts.push(c.distinctive)
   if (c.appearance)  parts.push(c.appearance)
   if (c.outfit)      parts.push(`wearing ${c.outfit}`)
 
@@ -66,8 +60,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const character = await prisma.character.findFirst({ where: { id, teamId } })
   if (!character) return NextResponse.json({ error: 'ไม่พบตัวละครนี้' }, { status: 404 })
 
-  const hasLook = character.appearance || character.gender || character.ageRange || character.hairStyle || character.faceDetails || character.bodyType;
-  if (!hasLook) {
+  if (!character.appearance && !character.gender && !character.ageRange) {
     return NextResponse.json(
       { error: 'กรุณากรอกข้อมูลรูปลักษณ์ (เพศ/ช่วงวัย/หน้าตา) ก่อนสร้างภาพ — เพื่อให้ภาพออกมาตรงตามที่ต้องการ' },
       { status: 400 }

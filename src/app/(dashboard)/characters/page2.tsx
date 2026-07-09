@@ -16,11 +16,6 @@ interface Character {
   gender?: string;
   ageRange?: string;
   skinTone?: string;
-  hairStyle?: string;
-  faceDetails?: string;
-  bodyType?: string;
-  height?: string;
-  distinctive?: string;
   appearance?: string;
   outfit?: string;
   portraitUrl?: string | null;
@@ -35,25 +30,13 @@ const SUGGEST = {
   gender: ['หญิง', 'ชาย', 'ไม่ระบุ'],
   ageRange: ['18-24 ปี', '25-30 ปี', '30-35 ปี', '35-45 ปี', '45-55 ปี', '55+ ปี', 'เด็ก 8-12 ปี', 'วัยรุ่น 13-17 ปี'],
   skinTone: ['ผิวขาว', 'ผิวขาวอมชมพู', 'ผิวขาวเหลือง', 'ผิวสองสี', 'ผิวแทน', 'ผิวน้ำผึ้ง', 'ผิวเข้ม'],
-  hairStyle: [
-    'ผมยาวสีดำตรง', 'ผมยาวลอนคลื่น', 'ผมบ๊อบสั้น', 'ผมสั้นซอยเท่', 'ผมมัดจุกสูง', 'ผมเปียยาว',
-    'ผมสีน้ำตาลอ่อน', 'ผมสีทองบลอนด์', 'ผมสั้นทรงนักธุรกิจ', 'ผมหยิกฟู', 'ผมสกินเฮด', 'ผมรองทรงเรียบร้อย',
-  ],
-  faceDetails: [
-    'หน้ารูปไข่', 'หน้ากลมน่ารัก', 'หน้าเรียวคมชัด', 'หน้าเหลี่ยมเข้ม', 'โหนกแก้มสวย',
-    'ตากลมโต', 'ตาคมเรียวยาว', 'ตายิ้มได้', 'ตาสองชั้นชัด', 'คิ้วเข้มสวย', 'คิ้วโก่งได้รูป',
-    'จมูกโด่งสวย', 'ริมฝีปากอิ่ม', 'ยิ้มมีลักยิ้ม', 'ยิ้มสดใส', 'ยิ้มอบอุ่น', 'หน้าตาเป็นมิตร', 'ดูฉลาดมั่นใจ', 'ดูลึกลับมีเสน่ห์',
-  ],
-  bodyType: [
-    'สมาร์ทหุ่นดี', 'รูปร่างสมส่วน', 'สูงโปร่ง', 'เล็กบอบบาง', 'ผอมเพรียว',
-    'ท้วมน่ารัก', 'อ้วนใจดี', 'มีกล้ามล่ำสัน', 'ฟิตแอนด์เฟิร์ม', 'ไหล่กว้างสง่า', 'หุ่นนักกีฬา',
-  ],
-  height: [
-    'สูง 150 ซม.', 'สูง 155 ซม.', 'สูง 160 ซม.', 'สูง 165 ซม.', 'สูง 170 ซม.', 'สูง 175 ซม.', 'สูง 180 ซม.', 'สูง 185 ซม.',
-  ],
-  distinctive: [
-    'มีไฝใต้ตา', 'มีลักยิ้มสองข้าง', 'ใส่แว่นกรอบใส', 'ใส่แว่นกรอบดำ', 'ฟันขาวเรียงสวย', 'แก้มใสเป็นประกาย',
-    'มีหนวดเคราบางๆ', 'เคราเข้มดูภูมิฐาน', 'ใส่ต่างหูเล็กๆ', 'มีรอยยิ้มโดดเด่น', 'ผิวเนียนใส',
+  appearance: [
+    'ผมยาวสีดำตรง', 'ผมยาวลอนคลื่น', 'ผมบ๊อบสั้น', 'ผมสั้นซอยเท่', 'ผมมัดจุกสูง', 'ผมสีน้ำตาลอ่อน', 'ผมสั้นทรงนักธุรกิจ', 'ผมหยิกฟู',
+    'หน้ารูปไข่', 'หน้ากลมน่ารัก', 'หน้าเรียวคมชัด', 'โหนกแก้มสวย',
+    'ตากลมโต', 'ตาคมเรียวยาว', 'ตายิ้มได้', 'คิ้วเข้มสวย',
+    'ยิ้มมีลักยิ้ม', 'ยิ้มสดใส', 'ยิ้มอบอุ่น', 'หน้าตาเป็นมิตร', 'ดูฉลาดมั่นใจ', 'ดูลึกลับมีเสน่ห์',
+    'รูปร่างสมส่วน', 'รูปร่างสูงโปร่ง', 'รูปร่างเล็กบอบบาง', 'หุ่นฟิตแข็งแรง', 'สูง 160 ซม.', 'สูง 165 ซม.', 'สูง 170 ซม.', 'สูง 175 ซม.', 'สูง 180 ซม.',
+    'มีไฝใต้ตา', 'แก้มใส', 'ฟันขาวเรียงสวย', 'ใส่แว่นกรอบใส',
   ],
   outfit: [
     'เดรสสีครีมมินิมอล', 'เดรสยาวสีพาสเทล', 'ชุดออฟฟิศเรียบหรู', 'สูทสีกรมท่า', 'เสื้อเชิ้ตขาวกางเกงสแล็ค',
@@ -126,7 +109,7 @@ function SuggestInput({ value, onChange, options, placeholder, textarea = false,
 }
 
 const EMOJI_OPTIONS = ['🤖','👩','👨','🦸','🧙','🎭','🌟','💫','🔥','🌸','🐯','🦋'];
-const EMPTY_FORM = { name:'', description:'', role:'unset', personality:'', tone:'', backstory:'', examples:'', avatarEmoji:'🤖', gender:'', ageRange:'', skinTone:'', hairStyle:'', faceDetails:'', bodyType:'', height:'', distinctive:'', appearance:'', outfit:'' };
+const EMPTY_FORM = { name:'', description:'', role:'unset', personality:'', tone:'', backstory:'', examples:'', avatarEmoji:'🤖', gender:'', ageRange:'', skinTone:'', appearance:'', outfit:'' };
 
 const ROLE_LABEL: Record<string,string> = {
   heroine: '👸 นางเอก', hero: '🤴 พระเอก', supporting: '🎭 ตัวรอง',
@@ -180,69 +163,6 @@ export default function CharactersPage() {
     if (!portraitCredId && imageCredentials.length > 0) setPortraitCredId(imageCredentials[0].id);
   }, [credentials]); // eslint-disable-line react-hooks/exhaustive-deps
   const selectedProvider = providers.find((p) => p.code === selectedCredential?.providerCode);
-
-  const [listening, setListening] = useState(false);
-  const [parsing, setParsing] = useState(false);
-  const [voiceText, setVoiceText] = useState('');
-
-  /** 🎤 ฟังเสียงพูดภาษาไทย → ส่งให้ AI แยกใส่ช่องรูปลักษณ์/บุคลิกอัตโนมัติ */
-  function handleVoiceInput() {
-    const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (!SR) { alert('เบราว์เซอร์นี้ไม่รองรับการฟังเสียง — แนะนำใช้ Google Chrome'); return; }
-    if (!genCredentialId || !genModelCode) {
-      alert('เลือก AI ในส่วน "สร้างรายละเอียดด้วย AI" ด้านล่างก่อน — ใช้ตัวเดียวกันแยกคำพูดเข้าช่อง'); return;
-    }
-    const rec = new SR();
-    rec.lang = 'th-TH';
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-    setListening(true);
-    rec.onresult = async (e: any) => {
-      const text = e.results[0][0].transcript as string;
-      setVoiceText(text);
-      setListening(false);
-      await parseVoiceToFields(text);
-    };
-    rec.onerror = () => { setListening(false); alert('ฟังเสียงไม่สำเร็จ ลองพูดใหม่ (เช็คไมค์และอนุญาตการใช้ไมค์ให้เว็บ)'); };
-    rec.onend = () => setListening(false);
-    rec.start();
-  }
-
-  async function parseVoiceToFields(text: string) {
-    setParsing(true);
-    try {
-      const prompt = `แยกคำบรรยายตัวละครต่อไปนี้ลงช่องข้อมูล ตอบเฉพาะบรรทัดที่มีข้อมูล รูปแบบ "ชื่อช่อง: ค่า" เท่านั้น ห้ามมีข้อความอื่น
-ช่องที่มี: เพศ, ช่วงวัย, สีผิว, ทรงผม, หน้าตา, รูปร่าง, ส่วนสูง, จุดเด่น, ชุด, บุคลิก, น้ำเสียง
-คำบรรยาย: "${text}"`;
-      const res = await fetch('/api/workflows/generate-text', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ credentialId: genCredentialId, modelCode: genModelCode, prompt })
-      });
-      const data = await res.json();
-      if (!data.text) { alert('AI แยกข้อมูลไม่สำเร็จ ลองใหม่'); return; }
-      const lines: string[] = data.text.split('\n').filter(Boolean);
-      const get = (k: string) => {
-        const line = lines.find((l) => l.trim().startsWith(k + ':'));
-        return line ? line.split(':').slice(1).join(':').trim() : '';
-      };
-      setForm((f) => ({
-        ...f,
-        gender:      get('เพศ')     || f.gender,
-        ageRange:    get('ช่วงวัย')  || f.ageRange,
-        skinTone:    get('สีผิว')    || f.skinTone,
-        hairStyle:   get('ทรงผม')   || f.hairStyle,
-        faceDetails: get('หน้าตา')  || f.faceDetails,
-        bodyType:    get('รูปร่าง')  || f.bodyType,
-        height:      get('ส่วนสูง')  || f.height,
-        distinctive: get('จุดเด่น')  || f.distinctive,
-        outfit:      get('ชุด')     || f.outfit,
-        personality: get('บุคลิก')   || f.personality,
-        tone:        get('น้ำเสียง') || f.tone,
-      }));
-    } catch { alert('เกิดข้อผิดพลาดตอนแยกข้อมูล'); }
-    finally { setParsing(false); }
-  }
 
   async function handleGenerateWithAI() {
     if (!genCredentialId || !genModelCode || !form.name) return;
@@ -302,7 +222,6 @@ export default function CharactersPage() {
       personality:c.personality, tone:c.tone, backstory:c.backstory??'',
       examples:c.examples??'', avatarEmoji:c.avatarEmoji,
       gender:c.gender??'', ageRange:c.ageRange??'', skinTone:c.skinTone??'',
-      hairStyle:c.hairStyle??'', faceDetails:c.faceDetails??'', bodyType:c.bodyType??'', height:c.height??'', distinctive:c.distinctive??'',
       appearance:c.appearance??'', outfit:c.outfit??'' });
     setEditingId(c.id); setShowForm(true); setExpanded(null);
   }
@@ -525,14 +444,7 @@ export default function CharactersPage() {
 
           {/* รูปลักษณ์ — หัวใจของความต่อเนื่องทุกฉาก/ทุก EP */}
           <div className="rounded-xl border border-gold/20 bg-gold/5 p-3.5 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-gold font-semibold">🎨 รูปลักษณ์ (ใช้ล็อกหน้าตาให้เหมือนกันทุกฉาก — ยิ่งละเอียดยิ่งนิ่ง)</p>
-              <button type="button" onClick={handleVoiceInput} disabled={listening || parsing}
-                className="text-[11px] px-3 py-1.5 rounded-lg border border-gold/40 text-gold disabled:opacity-60 whitespace-nowrap">
-                {listening ? '🔴 กำลังฟัง... พูดได้เลย' : parsing ? '⏳ AI กำลังแยกใส่ช่อง...' : '🎤 พูดบรรยายตัวละคร'}
-              </button>
-            </div>
-            {voiceText && <p className="text-[10px] text-[#9C9690] italic">ได้ยินว่า: &quot;{voiceText}&quot;</p>}
+            <p className="text-xs text-gold font-semibold">🎨 รูปลักษณ์ (ใช้ล็อกหน้าตาให้เหมือนกันทุกฉาก — ยิ่งละเอียดยิ่งนิ่ง)</p>
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="block text-[11px] text-[#9C9690] mb-1">เพศ</label>
@@ -551,31 +463,10 @@ export default function CharactersPage() {
               </div>
             </div>
             <div>
-              <label className="block text-[11px] text-[#9C9690] mb-1">ทรงผม</label>
-              <SuggestInput value={form.hairStyle} onChange={(v) => setForm({...form, hairStyle:v})}
-                options={SUGGEST.hairStyle} placeholder="เช่น: ผมยาวสีดำตรง" />
-            </div>
-            <div>
-              <label className="block text-[11px] text-[#9C9690] mb-1">หน้าตา (รูปหน้า ตา ยิ้ม — เลือกได้หลายอัน)</label>
-              <SuggestInput textarea append value={form.faceDetails} onChange={(v) => setForm({...form, faceDetails:v})}
-                options={SUGGEST.faceDetails} placeholder="เช่น: หน้ารูปไข่ ตากลมโต ยิ้มมีลักยิ้ม" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] text-[#9C9690] mb-1">รูปร่าง</label>
-                <SuggestInput value={form.bodyType} onChange={(v) => setForm({...form, bodyType:v})}
-                  options={SUGGEST.bodyType} placeholder="เช่น: สมาร์ทหุ่นดี / ท้วม / มีกล้าม" />
-              </div>
-              <div>
-                <label className="block text-[11px] text-[#9C9690] mb-1">ส่วนสูง</label>
-                <SuggestInput value={form.height} onChange={(v) => setForm({...form, height:v})}
-                  options={SUGGEST.height} placeholder="เช่น: สูง 165 ซม." />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[11px] text-[#9C9690] mb-1">จุดเด่น (เลือกได้หลายอัน)</label>
-              <SuggestInput textarea append value={form.distinctive} onChange={(v) => setForm({...form, distinctive:v})}
-                options={SUGGEST.distinctive} placeholder="เช่น: มีไฝใต้ตา ใส่แว่นกรอบใส" />
+              <label className="block text-[11px] text-[#9C9690] mb-1">หน้าตา ทรงผม รูปร่าง จุดเด่น</label>
+              <SuggestInput textarea append value={form.appearance} onChange={(v) => setForm({...form, appearance:v})}
+                options={SUGGEST.appearance}
+                placeholder="เช่น: ผมยาวสีดำตรง หน้ารูปไข่ ตากลมโต ยิ้มมีลักยิ้ม รูปร่างสมส่วน สูง 165 ซม." />
             </div>
             <div>
               <label className="block text-[11px] text-[#9C9690] mb-1">ชุด / สไตล์ประจำตัว</label>
