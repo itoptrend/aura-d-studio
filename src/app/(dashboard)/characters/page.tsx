@@ -23,6 +23,91 @@ interface Character {
 
 interface Credential { id: string; displayName: string; providerCode: string; }
 
+// ---------------------------------------------------------------------------
+// คลังตัวเลือกยอดนิยม — คลิกเลือกได้เลย หรือพิมพ์เองก็ได้ พิมพ์บางคำระบบกรองให้
+// ---------------------------------------------------------------------------
+const SUGGEST = {
+  gender: ['หญิง', 'ชาย', 'ไม่ระบุ'],
+  ageRange: ['18-24 ปี', '25-30 ปี', '30-35 ปี', '35-45 ปี', '45-55 ปี', '55+ ปี', 'เด็ก 8-12 ปี', 'วัยรุ่น 13-17 ปี'],
+  skinTone: ['ผิวขาว', 'ผิวขาวอมชมพู', 'ผิวขาวเหลือง', 'ผิวสองสี', 'ผิวแทน', 'ผิวน้ำผึ้ง', 'ผิวเข้ม'],
+  appearance: [
+    'ผมยาวสีดำตรง', 'ผมยาวลอนคลื่น', 'ผมบ๊อบสั้น', 'ผมสั้นซอยเท่', 'ผมมัดจุกสูง', 'ผมสีน้ำตาลอ่อน', 'ผมสั้นทรงนักธุรกิจ', 'ผมหยิกฟู',
+    'หน้ารูปไข่', 'หน้ากลมน่ารัก', 'หน้าเรียวคมชัด', 'โหนกแก้มสวย',
+    'ตากลมโต', 'ตาคมเรียวยาว', 'ตายิ้มได้', 'คิ้วเข้มสวย',
+    'ยิ้มมีลักยิ้ม', 'ยิ้มสดใส', 'ยิ้มอบอุ่น', 'หน้าตาเป็นมิตร', 'ดูฉลาดมั่นใจ', 'ดูลึกลับมีเสน่ห์',
+    'รูปร่างสมส่วน', 'รูปร่างสูงโปร่ง', 'รูปร่างเล็กบอบบาง', 'หุ่นฟิตแข็งแรง', 'สูง 160 ซม.', 'สูง 165 ซม.', 'สูง 170 ซม.', 'สูง 175 ซม.', 'สูง 180 ซม.',
+    'มีไฝใต้ตา', 'แก้มใส', 'ฟันขาวเรียงสวย', 'ใส่แว่นกรอบใส',
+  ],
+  outfit: [
+    'เดรสสีครีมมินิมอล', 'เดรสยาวสีพาสเทล', 'ชุดออฟฟิศเรียบหรู', 'สูทสีกรมท่า', 'เสื้อเชิ้ตขาวกางเกงสแล็ค',
+    'ชุดหมอสีขาว', 'ชุดพยาบาล', 'ชุดเชฟ', 'ชุดยูนิฟอร์มพนักงาน',
+    'เสื้อยืดยีนส์สบายๆ', 'สตรีทแฟชั่นเท่ๆ', 'ชุดกีฬาสปอร์ต', 'ชุดไทยประยุกต์', 'เสื้อคลุมคาร์ดิแกนอบอุ่น',
+  ],
+  personality: [
+    'เป็นมิตร อบอุ่น เข้าถึงง่าย', 'มั่นใจ กล้าตัดสินใจ', 'ร่าเริง สดใส มีพลังบวก', 'สุขุม ใจเย็น น่าเชื่อถือ',
+    'ฉลาดหลักแหลม ช่างสังเกต', 'ขี้เล่น มีอารมณ์ขัน', 'อ่อนโยน ใส่ใจรายละเอียด', 'ตรงไปตรงมา จริงใจ',
+    'ทะเยอทะยาน มุ่งมั่น', 'ลึกลับ พูดน้อยแต่คมทุกคำ', 'ใจดีเกินเหตุ ปฏิเสธใครไม่เป็น', 'เจ้าเล่ห์แสนกล (ตัวร้าย)',
+  ],
+  tone: [
+    'พูดภาษาไทยกึ่งทางการ เข้าใจง่าย', 'พูดสบายๆ เหมือนเพื่อนคุยกัน', 'สุภาพเป็นทางการ น่าเชื่อถือ',
+    'สดใสมีพลัง ลงท้ายด้วยคำชวนคุย', 'นุ่มนวลอบอุ่น เหมือนพี่สาวใจดี', 'กระชับ ตรงประเด็น แบบมือโปร',
+    'ภาษาวัยรุ่น ทันเทรนด์ มีศัพท์ฮิต', 'เล่าเรื่องเก่ง มีจังหวะน่าติดตาม',
+  ],
+  description: [
+    'ผู้เชี่ยวชาญด้านความงาม', 'พรีเซนเตอร์สินค้า', 'พิธีกรรายการ', 'ผู้รอบรู้เรื่องสุขภาพ',
+    'เจ้าของร้านใจดี', 'ที่ปรึกษามือโปร', 'อินฟลูเอนเซอร์สายไลฟ์สไตล์', 'ผู้ช่วยอัจฉริยะประจำแบรนด์',
+  ],
+} as const;
+
+/** ช่องกรอกอัจฉริยะ: พิมพ์เอง หรือคลิกเลือกจากรายการ (พิมพ์บางคำ = กรองรายการ)
+ *  append=true → คลิกแล้ว "เพิ่มต่อท้าย" (เหมาะกับช่องที่ใส่ได้หลายอย่าง เช่น หน้าตา/บุคลิก) */
+function SuggestInput({ value, onChange, options, placeholder, textarea = false, append = false }: {
+  value: string; onChange: (v: string) => void; options: readonly string[];
+  placeholder?: string; textarea?: boolean; append?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const filter = append ? (value.split(/[,\s]/).pop() ?? '') : value;
+  const filtered = options.filter((o) => !filter.trim() || o.toLowerCase().includes(filter.trim().toLowerCase()));
+  const shown = filtered.length > 0 ? filtered : options;
+
+  function pick(o: string) {
+    if (append && value.trim()) {
+      // เพิ่มต่อท้าย (แทนคำที่กำลังพิมพ์ค้างอยู่ ถ้ามี)
+      const base = filter && value.endsWith(filter) ? value.slice(0, value.length - filter.length) : value + ' ';
+      onChange((base + o).replace(/\s+/g, ' ').trimStart());
+    } else {
+      onChange(o);
+    }
+    if (!append) setOpen(false);
+  }
+
+  const cls = 'w-full rounded-lg px-3 py-2 text-sm';
+  return (
+    <div className="relative">
+      {textarea ? (
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2}
+          onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder={placeholder} className={cls} />
+      ) : (
+        <input value={value} onChange={(e) => onChange(e.target.value)}
+          onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder={placeholder} className={cls} />
+      )}
+      {open && shown.length > 0 && (
+        <div className="absolute z-20 mt-1 w-full max-h-44 overflow-y-auto rounded-xl border border-[#2C2A35] bg-[#14121B] shadow-xl">
+          {append && <p className="px-3 py-1.5 text-[10px] text-[#9C9690] border-b border-[#2C2A35]">คลิกเพื่อเพิ่มต่อท้าย (เลือกได้หลายอัน)</p>}
+          {shown.slice(0, 30).map((o) => (
+            <button key={o} type="button" onMouseDown={(e) => { e.preventDefault(); pick(o); }}
+              className="block w-full text-left px-3 py-1.5 text-xs text-[#E4DECE] hover:bg-gold/10 hover:text-gold">
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const EMOJI_OPTIONS = ['🤖','👩','👨','🦸','🧙','🎭','🌟','💫','🔥','🌸','🐯','🦋'];
 const EMPTY_FORM = { name:'', description:'', role:'unset', personality:'', tone:'', backstory:'', examples:'', avatarEmoji:'🤖', gender:'', ageRange:'', skinTone:'', appearance:'', outfit:'' };
 
@@ -333,8 +418,9 @@ export default function CharactersPage() {
             </div>
             <div>
               <label className="block text-xs text-[#9C9690] mb-1.5">คำอธิบายสั้นๆ</label>
-              <input value={form.description} onChange={(e) => setForm({...form, description:e.target.value})}
-                placeholder="เช่น ผู้ช่วยด้านความงาม" className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
+              <SuggestInput value={form.description} onChange={(v) => setForm({...form, description:v})}
+                options={SUGGEST.description}
+                placeholder="เช่น ผู้ช่วยด้านความงาม" />
             </div>
           </div>
 
@@ -362,30 +448,30 @@ export default function CharactersPage() {
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="block text-[11px] text-[#9C9690] mb-1">เพศ</label>
-                <input value={form.gender} onChange={(e) => setForm({...form, gender:e.target.value})}
-                  placeholder="หญิง / ชาย" className="w-full rounded-lg px-3 py-2 text-sm" />
+                <SuggestInput value={form.gender} onChange={(v) => setForm({...form, gender:v})}
+                  options={SUGGEST.gender} placeholder="หญิง / ชาย" />
               </div>
               <div>
                 <label className="block text-[11px] text-[#9C9690] mb-1">ช่วงวัย</label>
-                <input value={form.ageRange} onChange={(e) => setForm({...form, ageRange:e.target.value})}
-                  placeholder="25-30 ปี" className="w-full rounded-lg px-3 py-2 text-sm" />
+                <SuggestInput value={form.ageRange} onChange={(v) => setForm({...form, ageRange:v})}
+                  options={SUGGEST.ageRange} placeholder="25-30 ปี" />
               </div>
               <div>
                 <label className="block text-[11px] text-[#9C9690] mb-1">สีผิว</label>
-                <input value={form.skinTone} onChange={(e) => setForm({...form, skinTone:e.target.value})}
-                  placeholder="ผิวสองสี" className="w-full rounded-lg px-3 py-2 text-sm" />
+                <SuggestInput value={form.skinTone} onChange={(v) => setForm({...form, skinTone:v})}
+                  options={SUGGEST.skinTone} placeholder="ผิวสองสี" />
               </div>
             </div>
             <div>
               <label className="block text-[11px] text-[#9C9690] mb-1">หน้าตา ทรงผม รูปร่าง จุดเด่น</label>
-              <textarea value={form.appearance} onChange={(e) => setForm({...form, appearance:e.target.value})} rows={2}
-                placeholder="เช่น: ผมยาวสีดำตรง หน้ารูปไข่ ตากลมโต ยิ้มมีลักยิ้ม รูปร่างสมส่วน สูง 165 ซม."
-                className="w-full rounded-lg px-3 py-2 text-sm" />
+              <SuggestInput textarea append value={form.appearance} onChange={(v) => setForm({...form, appearance:v})}
+                options={SUGGEST.appearance}
+                placeholder="เช่น: ผมยาวสีดำตรง หน้ารูปไข่ ตากลมโต ยิ้มมีลักยิ้ม รูปร่างสมส่วน สูง 165 ซม." />
             </div>
             <div>
               <label className="block text-[11px] text-[#9C9690] mb-1">ชุด / สไตล์ประจำตัว</label>
-              <input value={form.outfit} onChange={(e) => setForm({...form, outfit:e.target.value})}
-                placeholder="เช่น: เดรสสีครีมมินิมอล / ชุดหมอสีขาว" className="w-full rounded-lg px-3 py-2 text-sm" />
+              <SuggestInput value={form.outfit} onChange={(v) => setForm({...form, outfit:v})}
+                options={SUGGEST.outfit} placeholder="เช่น: เดรสสีครีมมินิมอล / ชุดหมอสีขาว" />
             </div>
           </div>
 
@@ -415,15 +501,13 @@ export default function CharactersPage() {
 
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">บุคลิกนิสัย</label>
-            <textarea value={form.personality} onChange={(e) => setForm({...form, personality:e.target.value})}
-              placeholder="เช่น เป็นมิตร อบอุ่น ให้คำแนะนำอย่างตรงไปตรงมา..."
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm min-h-[80px] resize-none" />
+            <SuggestInput textarea append value={form.personality} onChange={(v) => setForm({...form, personality:v})}
+              options={SUGGEST.personality} placeholder="เช่น เป็นมิตร อบอุ่น ให้คำแนะนำอย่างตรงไปตรงมา..." />
           </div>
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">น้ำเสียงการสื่อสาร</label>
-            <input value={form.tone} onChange={(e) => setForm({...form, tone:e.target.value})}
-              placeholder="เช่น พูดภาษาไทยกึ่งทางการ ใช้ภาษาเข้าใจง่าย"
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm" />
+            <SuggestInput value={form.tone} onChange={(v) => setForm({...form, tone:v})}
+              options={SUGGEST.tone} placeholder="เช่น พูดภาษาไทยกึ่งทางการ ใช้ภาษาเข้าใจง่าย" />
           </div>
           <div>
             <label className="block text-xs text-[#9C9690] mb-1.5">ประวัติ / Backstory</label>
