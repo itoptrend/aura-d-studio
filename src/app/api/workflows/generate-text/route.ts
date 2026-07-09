@@ -6,6 +6,7 @@ import { decryptSecret } from '@/lib/encryption';
 import { generateText, estimateCreditCost } from '@/lib/ai/anthropic';
 import { generateTextGemini } from '@/lib/ai/google';
 import { generateTextGrok } from '@/lib/ai/grok';
+import { generateTextOpenRouter } from '@/lib/ai/openrouter-text';
 
 type GenerateParams = { apiKey: string; model: string; system?: string; prompt: string; maxTokens?: number };
 
@@ -13,7 +14,8 @@ async function callAI(providerCode: string, params: GenerateParams) {
   switch (providerCode) {
     case 'anthropic': return generateText(params);
     case 'google':    return generateTextGemini(params);
-    case 'xai':       return generateTextGrok(params);
+    case 'xai':        return generateTextGrok(params);
+    case 'openrouter': return generateTextOpenRouter(params);
     default: throw new Error(`ยังไม่รองรับ provider "${providerCode}"`);
   }
 }

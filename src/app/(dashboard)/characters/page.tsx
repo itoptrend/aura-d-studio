@@ -502,6 +502,11 @@ export default function CharactersPage() {
               </button>
             </div>
             {genCredentialId && genModelCode && <p className="text-[10px] text-emerald-400">✓ พร้อมใช้ 🎤 พูดบรรยาย และสร้างรายละเอียดอัตโนมัติ</p>}
+            {genCredentialId && !selectedProvider && (
+              <p className="text-[10px] text-amber-400/90">
+                ⚠ Key นี้ยังไม่มีโมเดลสายข้อความในระบบ — เลือก Key อื่น (เช่น Google Gemini) หรือรัน <code>npx tsx prisma/add-openrouter-text-models.ts</code> เพื่อเพิ่มโมเดล text ให้ OpenRouter
+              </p>
+            )}
           </div>
 
           {/* Emoji picker */}
