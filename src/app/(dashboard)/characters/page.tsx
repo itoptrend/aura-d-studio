@@ -478,6 +478,32 @@ export default function CharactersPage() {
         <div className="mt-6 rounded-2xl border border-gold/30 bg-gold/5 p-5 space-y-4">
           <h2 className="font-serif text-lg">{editingId ? 'แก้ไขตัวละคร' : 'สร้างตัวละครใหม่'}</h2>
 
+          {/* AI Generator — ตั้งค่าตั้งแต่เริ่มต้น ใช้ทั้งปุ่ม 🎤 พูดบรรยาย และปุ่มสร้างรายละเอียด */}
+          <div className="rounded-xl border border-gold/30 bg-gold/5 p-3 space-y-2">
+            <p className="text-xs text-gold font-semibold">✨ เลือก AI ผู้ช่วย (ใช้กับปุ่ม 🎤 พูดบรรยาย และสร้างรายละเอียดอัตโนมัติ)</p>
+            <div className="flex gap-2">
+              <select value={genCredentialId} onChange={(e) => { setGenCredentialId(e.target.value); setGenModelCode(''); }}
+                className="flex-1 rounded-xl px-3 py-2 text-xs">
+                <option value="">เลือก AI</option>
+                {credentials.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+              </select>
+              {selectedProvider && (
+                <select value={genModelCode} onChange={(e) => setGenModelCode(e.target.value)}
+                  className="flex-1 rounded-xl px-3 py-2 text-xs">
+                  <option value="">เลือกโมเดล</option>
+                  {selectedProvider.models.map((m) => <option key={m.modelCode} value={m.modelCode}>{m.displayName}</option>)}
+                </select>
+              )}
+              <button onClick={handleGenerateWithAI}
+                disabled={generating || !genCredentialId || !genModelCode || !form.name}
+                title={!form.name ? 'ตั้งชื่อตัวละครก่อน แล้วกดสร้าง' : ''}
+                className="text-xs font-semibold bg-[#2C2A35] text-bone rounded-xl px-3 py-2 disabled:opacity-50">
+                {generating ? 'กำลังสร้าง...' : 'สร้าง'}
+              </button>
+            </div>
+            {genCredentialId && genModelCode && <p className="text-[10px] text-emerald-400">✓ พร้อมใช้ 🎤 พูดบรรยาย และสร้างรายละเอียดอัตโนมัติ</p>}
+          </div>
+
           {/* Emoji picker */}
           <div>
             <label className="block text-xs text-[#9C9690] mb-2">Avatar</label>
@@ -581,30 +607,6 @@ export default function CharactersPage() {
               <label className="block text-[11px] text-[#9C9690] mb-1">ชุด / สไตล์ประจำตัว</label>
               <SuggestInput value={form.outfit} onChange={(v) => setForm({...form, outfit:v})}
                 options={SUGGEST.outfit} placeholder="เช่น: เดรสสีครีมมินิมอล / ชุดหมอสีขาว" />
-            </div>
-          </div>
-
-          {/* AI Generator */}
-          <div className="rounded-xl border border-[#2C2A35] p-3 space-y-2">
-            <p className="text-xs text-[#9C9690] font-semibold">✨ สร้างรายละเอียดด้วย AI</p>
-            <div className="flex gap-2">
-              <select value={genCredentialId} onChange={(e) => { setGenCredentialId(e.target.value); setGenModelCode(''); }}
-                className="flex-1 rounded-xl px-3 py-2 text-xs">
-                <option value="">เลือก AI</option>
-                {credentials.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
-              </select>
-              {selectedProvider && (
-                <select value={genModelCode} onChange={(e) => setGenModelCode(e.target.value)}
-                  className="flex-1 rounded-xl px-3 py-2 text-xs">
-                  <option value="">เลือกโมเดล</option>
-                  {selectedProvider.models.map((m) => <option key={m.modelCode} value={m.modelCode}>{m.displayName}</option>)}
-                </select>
-              )}
-              <button onClick={handleGenerateWithAI}
-                disabled={generating || !genCredentialId || !genModelCode || !form.name}
-                className="text-xs font-semibold bg-[#2C2A35] text-bone rounded-xl px-3 py-2 disabled:opacity-50">
-                {generating ? 'กำลังสร้าง...' : 'สร้าง'}
-              </button>
             </div>
           </div>
 
