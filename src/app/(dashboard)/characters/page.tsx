@@ -183,25 +183,22 @@ export default function CharactersPage() {
 
   const [listening, setListening] = useState(false);
   const [parsing, setParsing] = useState(false);
-  const [voiceText, setVoiceText] = useState('');
+  const [voiceDraft, setVoiceDraft] = useState('');  // ข้อความร่างจากการพูด/พิมพ์ ก่อนกดยืนยัน
 
   /** 🎤 ฟังเสียงพูดภาษาไทย → ส่งให้ AI แยกใส่ช่องรูปลักษณ์/บุคลิกอัตโนมัติ */
   function handleVoiceInput() {
     const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SR) { alert('เบราว์เซอร์นี้ไม่รองรับการฟังเสียง — แนะนำใช้ Google Chrome'); return; }
-    if (!genCredentialId || !genModelCode) {
-      alert('เลือก AI ในส่วน "สร้างรายละเอียดด้วย AI" ด้านล่างก่อน — ใช้ตัวเดียวกันแยกคำพูดเข้าช่อง'); return;
-    }
+
     const rec = new SR();
     rec.lang = 'th-TH';
     rec.interimResults = false;
     rec.maxAlternatives = 1;
     setListening(true);
-    rec.onresult = async (e: any) => {
+    rec.onresult = (e: any) => {
       const text = e.results[0][0].transcript as string;
-      setVoiceText(text);
+      setVoiceDraft((prev) => prev ? `${prev} ${text}` : text);  // พูดหลายรอบ = ต่อท้ายเรื่อยๆ
       setListening(false);
-      await parseVoiceToFields(text);
     };
     rec.onerror = () => { setListening(false); alert('ฟังเสียงไม่สำเร็จ ลองพูดใหม่ (เช็คไมค์และอนุญาตการใช้ไมค์ให้เว็บ)'); };
     rec.onend = () => setListening(false);
@@ -209,9 +206,13 @@ export default function CharactersPage() {
   }
 
   async function parseVoiceToFields(text: string) {
+    if (!genCredentialId || !genModelCode) {
+      alert('เลือก AI ผู้ช่วยในกรอบทองด้านบนก่อน — ใช้เรียบเรียงและแยกข้อความเข้าช่อง'); return;
+    }
     setParsing(true);
     try {
-      const prompt = `แยกคำบรรยายตัวละครต่อไปนี้ลงช่องข้อมูล ตอบเฉพาะบรรทัดที่มีข้อมูล รูปแบบ "ชื่อช่อง: ค่า" เท่านั้น ห้ามมีข้อความอื่น
+      const prompt = `เรียบเรียงคำบรรยายตัวละครต่อไปนี้ให้สละสลวย กระชับ เป็นภาษาไทยธรรมชาติ แล้วแยกลงช่องข้อมูล
+ตอบเฉพาะบรรทัดที่มีข้อมูล รูปแบบ "ชื่อช่อง: ค่า" เท่านั้น ห้ามมีข้อความอื่น
 ช่องที่มี: เพศ, ช่วงวัย, สีผิว, ทรงผม, หน้าตา, รูปร่าง, ส่วนสูง, จุดเด่น, ชุด, บุคลิก, น้ำเสียง
 คำบรรยาย: "${text}"`;
       const res = await fetch('/api/workflows/generate-text', {
@@ -563,7 +564,29 @@ export default function CharactersPage() {
                 {listening ? '🔴 กำลังฟัง... พูดได้เลย' : parsing ? '⏳ AI กำลังแยกใส่ช่อง...' : '🎤 พูดบรรยายตัวละคร'}
               </button>
             </div>
-            {voiceText && <p className="text-[10px] text-[#9C9690] italic">ได้ยินว่า: &quot;{voiceText}&quot;</p>}
+            {(voiceDraft || listening) && (
+              <div className="rounded-lg border border-gold/25 bg-black/20 p-2.5 space-y-2">
+                <p className="text-[10px] text-[#9C9690]">📝 ข้อความที่พูด — แก้ไข/พิมพ์เพิ่มได้ก่อนกดยืนยัน</p>
+                <textarea value={voiceDraft} onChange={(e) => setVoiceDraft(e.target.value)} rows={3}
+                  placeholder="พูดผ่านไมค์ หรือพิมพ์บรรยายตรงนี้ก็ได้..."
+                  className="w-full rounded-lg px-3 py-2 text-sm" />
+                <div className="flex gap-2 flex-wrap">
+                  <button type="button" onClick={handleVoiceInput} disabled={listening || parsing}
+                    className="text-[11px] px-3 py-1.5 rounded-lg border border-[#2C2A35] text-[#9C9690] disabled:opacity-50">
+                    {listening ? '🔴 กำลังฟัง...' : '🎤 พูดเพิ่ม (ต่อท้าย)'}
+                  </button>
+                  <button type="button" onClick={() => parseVoiceToFields(voiceDraft).then(() => setVoiceDraft(''))}
+                    disabled={parsing || !voiceDraft.trim()}
+                    className="text-[11px] px-3 py-1.5 rounded-lg bg-gold text-black font-semibold disabled:opacity-50">
+                    {parsing ? '⏳ AI กำลังเรียบเรียง...' : '✅ ยืนยัน — เรียบเรียงและแยกใส่ช่อง'}
+                  </button>
+                  <button type="button" onClick={() => setVoiceDraft('')} disabled={parsing}
+                    className="text-[11px] px-3 py-1.5 rounded-lg border border-[#C9716A]/40 text-[#C9716A] disabled:opacity-50">
+                    ✕ ล้าง
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="block text-[11px] text-[#9C9690] mb-1">เพศ</label>

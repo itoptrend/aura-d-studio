@@ -191,7 +191,13 @@ export default function VideoGeneratePage() {
     let p = values.prompt.trim()
     const chars = allCharacters.filter(c => selectedCharIds.includes(c.id))
     if (chars.length > 0) p += buildCharactersSection(chars)
-    if (values.dialogue?.trim())    p += `\nThe character says: "${values.dialogue.trim()}"`
+    if (values.dialogue?.trim()) {
+      const d = values.dialogue.trim()
+      const isThai = /[\u0E00-\u0E7F]/.test(d)
+      p += isThai
+        ? `\nThe character speaks in THAI LANGUAGE with natural Thai voice and accent (do NOT translate to English): "${d}"`
+        : `\nThe character says: "${d}"`
+    }
     if (values.music?.trim())       p += `\nBackground audio: ${values.music.trim()}`
     if (values.overlayText?.trim()) p += `\nText overlay on screen: "${values.overlayText.trim()}"`
     return p
